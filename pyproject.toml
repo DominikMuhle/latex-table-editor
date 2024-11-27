@@ -1,0 +1,14 @@
+[project]
+name = "pandas2latex"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "jinja2>=3.1.4",
+    "pandas>=2.2.3",
+    "pytest>=8.3.3",
+]
+
+[tool.pytest.ini_options]
+pythonpath = "src"
