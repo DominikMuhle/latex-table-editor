@@ -52,32 +52,38 @@ def interacitve_highlighting():
     # Ask the user for the highlighting patterns as a comma-separated list of strings
     # Provide a default value as an example
     print("Please enter the highlighting patterns as a comma-separated list of strings:")
-    print("Example: \\bfseries{%.3f},\\underline{%.3f}")
+    print("Example: \\bfseries{%s},\\underline{%s}")
     print("If you want to use the default highlighting pattern, just press Enter")
-    highlighting = (input("Enter the highlighting patterns: ") or "\\bfseries{%.3f},\\underline{%.3f}").split(",")
+    highlighting = (input("Enter the highlighting patterns: ") or "\\bfseries{%s},\\underline{%s}").split(",")
 
     # Ask the user for the default formatting pattern
     print("Please enter the default formatting pattern:")
-    print("Example: %.3f")
-    default = input("Enter the default formatting pattern: ") or "%.3f"
+    print("Example: %s")
+    default = input("Enter the default formatting pattern: ") or "%s"
 
     if axis == Axis.ROW:
         table = table.T
     
-    # for each column ask the user for the order
+    # for each column ask the user for the order and precision
     orders = []
+    precisions = []
     for column in table.columns:
         print(f"Please select the order for column {column}:")
         print("0: Minimum")
         print("1: Maximum")
         orders.append(Order(int(input("Enter the order: "))))
+        print(f"Please enter the precision for column {column}:")
+        print("Example: %.3f")
+        print("If you want to use the default precision, just press Enter")
+        precisions.append(input("Enter the precision: ") or "%.3f")
+
 
     rows, columns = table.shape
     ignore_idx = []
     remaining_indices = [idx for idx in range(rows) if idx not in ignore_idx]
     
-    for idx, (column, order) in enumerate(zip(table.columns, orders)):
-        table[column] = column_highlighting(table[column], remaining_indices, order, highlighting, default)
+    for idx, (column, order, precision) in enumerate(zip(table.columns, orders, precisions)):
+        table[column] = column_highlighting(table[column], remaining_indices, order, highlighting, default, precision)
         
     if axis == Axis.ROW:
         table = table.T

@@ -17,20 +17,23 @@ HIGHLIGHTING_RULES = [
     {
         "name": "Metric1",
         "order": Order.MINIMUM,
-        "highlighting": ["\\bfseries{%.3f}", "\\underline{%.3f}"],
-        "default": "%.3f",
+        "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
+        "default": "%s",
+        "precision": "%.3f",
     },
     {
         "name": "Metric2",
         "order": Order.MAXIMUM,
-        "highlighting": ["\{\color{red}{%.3f}}", "\{\color{green}{%.3f}}"],
-        "default": "%.3f",
+        "highlighting": ["\{\color{red}{%s}}", "\{\color{green}{%s}}"],
+        "default": "%s",
+        "precision": "%.3f",
     },
     {
         "name": "Metric3",
         "order": Order.MAXIMUM,
-        "highlighting": ["\\bfseries{%.2f}", "\\underline{%.2f}"],
-        "default": "%.2f",
+        "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
+        "default": "%s",
+        "precision": "%.2f",
     },
 ]
 
