@@ -6,6 +6,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Footer, TextArea, DataTable, Static
 from textual.containers import Container
 from textual.binding import Binding
+from textual.events import Click
 
 import pandas as pd
 from highlighting import DEFAULT_HIGHLIGHTING, table_highlighting_by_name
@@ -20,6 +21,7 @@ class P2LApp(App):
         Binding("S", "start_selection_mode", "Swap Mode"),
         Binding("ctrl+s", "submit", "Submit"),
         Binding("s", "column_selection", "Select Column", show=False),
+        Binding("click", "handle_column_click", "Handle Column Click"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -138,11 +140,14 @@ class P2LApp(App):
         self.input_area.text = ""  # Clear the TextArea
         self.current_active_text_area = None
         self.update_data_table()
-        self.refresh()
 
     def submit_highlighting_input(self, update_variable: dict[str, Any]) -> None:
         try:
             new_rules = json.loads(self.highlight_input_area.text)
+            # Convert the order to the Order enum if present
+            if "order" in new_rules:
+                new_rules["order"] = Order(new_rules["order"])
+
             update_variable.update(new_rules)
             self.highlight_input_area.visible = False
             self.highlight_input_area.text = ""
@@ -151,7 +156,7 @@ class P2LApp(App):
             self.refresh()
         except json.JSONDecodeError:
             # Handle invalid JSON input. Append a message to the TextArea
-            self.highlight_input_area.text += "\n\nInvalid JSON input. Please try again."
+            self.status_bar.update("Invalid JSON input. Please try again.")
 
 
     def update_data_table(self):
@@ -162,10 +167,24 @@ class P2LApp(App):
         self.data_table.clear(columns=True)
         # add the columns with the index column
         # self.data_table.add_column("Index")
-        self.data_table.add_columns(*[str(col) for col in self.displayed_table.columns])
+        column_names = []
+        for col in self.displayed_table.columns:
+            # get the ordering of the columns
+            formatting_rules = self.formatting_rules.get(col, {})
+            order = formatting_rules.get("order", self.default_highlighting["order"])
+            match order:
+                case Order.MINIMUM:
+                    column_names.append(f"{str(col)} (v)")
+                case Order.NEUTRAL:
+                    column_names.append(f"{str(col)} (-)")
+                case Order.MAXIMUM:
+                    column_names.append(f"{str(col)} (^)")
+
+        self.data_table.add_columns(*column_names)
 
         for _, row in self.displayed_table.iterrows():
             self.data_table.add_row(*[str(value) for value in row], key=str(row.name))
+        self.refresh()
 
     def swap_columns(self, col1: str, col2: str) -> None:
         # Swap columns in the DataFrame
@@ -178,7 +197,7 @@ class P2LApp(App):
         self.table = self.table[cols]
 
         self.update_data_table()
-        # self.footer.update(f"Swapped columns '{col1}' and '{col2}'.")
+        self.status_bar.update(f"Swapped columns '{col1}' and '{col2}'.")
 
 
     def reset_formatting_rules(self):
@@ -189,6 +208,43 @@ class P2LApp(App):
 
         self.default_highlighting = deepcopy(DEFAULT_HIGHLIGHTING)
         self.formatting_rules = formatting_rules
+
+    def on_click(self, event: Click) -> None:
+        """Handle click events on the DataTable columns."""
+        # Check if the click is on the DataTable
+        if event.button != 1:
+            return  # Only handle left-clicks
+
+        element = event.widget
+
+        if isinstance(element, DataTable):
+            # Check if the clicked element is a column header
+            if element.hover_row != -1 or element.hover_column == -1:
+                return
+            column_name = self.displayed_table.columns[element.hover_column]
+            self.toggle_column_order(column_name)
+    
+    def toggle_column_order(self, column_name: str) -> None:
+        """Toggle the order of the specified column between min, neutral, and max."""
+        current_order = self.formatting_rules[column_name].get("order", self.default_highlighting["order"])
+
+        # Define the toggle sequence
+        match current_order:
+            case Order.MINIMUM:
+                new_order = Order.NEUTRAL
+            case Order.NEUTRAL:
+                new_order = Order.MAXIMUM
+            case Order.MAXIMUM:
+                new_order = Order.MINIMUM
+
+        # Update the order in the formatting rules
+        self.formatting_rules[column_name]["order"] = new_order
+
+        # Update the status bar
+        self.status_bar.update(f"Column '{column_name}' order set to {new_order.name}.")
+
+        # Re-apply highlighting with updated order
+        self.update_data_table()
 
 
 if __name__ == "__main__":

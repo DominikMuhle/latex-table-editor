@@ -29,7 +29,7 @@ def convert2dataframe(input_string: str):
     # split the table into rows
     rows = input_string.split("\n")
     # split each row into columns
-    rows = [row.split("&") for row in rows[:-1]]
+    rows = [row.split("&") for row in rows]
     indices = [row[0] for row in rows]
     data = [row[1:] for row in rows]
 
