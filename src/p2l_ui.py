@@ -22,9 +22,10 @@ class DataTableScreen(Screen):
         Binding("N", "show_input", "New Input"),
         Binding("d", "show_default_highlighting", "Default Rules"),
         Binding("c", "show_column_highlighting", "Column Rules"),
-        Binding("S", "start_selection_mode", "Start Column Selection"),
-        Binding("enter", "submit_highlighting", "Submit Highlighting", show=False),
-        Binding("click", "handle_column_click", "Handle Column Click"),
+        Binding("S", "start_selection_mode", "Start Swap Mode"),
+        # Binding("enter", "submit_highlighting", "Submit Highlighting", show=False),
+        Binding("s", "column_selection", "Select Column", show=False),
+        Binding("click", "handle_column_click", "Toggle Column Order"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -33,9 +34,9 @@ class DataTableScreen(Screen):
         self.status_bar = Static("Status: Ready")
         self.footer = Footer()
 
-        yield Container(self.data_table)
-        yield Container(self.status_bar)
-        yield Container(self.footer)
+        yield Container(self.data_table, id="main")
+        yield Container(self.status_bar, id="status")
+        yield Container(self.footer, id="footer")
 
     def draw_table(self) -> None:
         # copy the table to avoid modifying the original table
@@ -90,7 +91,7 @@ class DataTableScreen(Screen):
             return
         self.selection_mode = True
         self.selected_columns = []
-        self.status_bar.update("Selection Mode: Select two columns by pressing Enter on each.")
+        self.status_bar.update("Selection Mode: Select two columns by pressing 's' on each.")
 
     async def disable_selection_mode(self) -> None:
         self.selection_mode = False
@@ -121,7 +122,7 @@ class DataTableScreen(Screen):
 class InputScreen(Screen):
     """Screen for table input."""
     BINDINGS = [
-        Binding("ctrl+s", "submit", "Submit", show=False),
+        Binding("ctrl+s", "submit", "Submit"),
     ]
 
     class Modes:
@@ -138,9 +139,9 @@ class InputScreen(Screen):
         self.input_area = TextArea()
         self.status_bar = Static("Status: Ready")
         self.footer = Footer()
-        yield Container(self.input_area)
-        yield Container(self.status_bar)
-        yield Container(self.footer)
+        yield Container(self.input_area, id="main")
+        yield Container(self.status_bar, id="status")
+        yield Container(self.footer, id="footer")
 
     async def on_mount(self) -> None:
         """Focus on the input area when the screen is mounted."""
@@ -159,7 +160,7 @@ class InputScreen(Screen):
 class HighlightingInputScreen(Screen):
     """Screen for default or column highlighting input."""
     BINDINGS = [
-        Binding("ctrl+s", "submit", "Submit", show=False),
+        Binding("ctrl+s", "submit", "Submit"),
     ]
 
     def __init__(self, text: str):
@@ -172,9 +173,9 @@ class HighlightingInputScreen(Screen):
         self.highlight_input_area.text = self.text
         self.status_bar = Static("Status: Ready")
         self.footer = Footer()
-        yield Container(self.highlight_input_area)
-        yield Container(self.status_bar)
-        yield Container(self.footer)
+        yield Container(self.highlight_input_area, id="main")
+        yield Container(self.status_bar, id="status")
+        yield Container(self.footer, id="footer")
 
     async def on_mount(self) -> None:
         """Focus on the highlighting input area when the screen is mounted."""
@@ -199,36 +200,26 @@ class HighlightingInputScreen(Screen):
 class P2LApp(App):
     """Main application class."""
 
-    # CSS = """
-    # Screen {
-    #     layout: vertical;
-    # }
-    # Container {
-    #     height: 100%;
-    # }
-    # TextArea {
-    #     height: 100%;
-    # }
-    # DataTable {
-    #     height: 100%;
-    # }
-    # Footer {
-    #     height: 1;
-    # }
-    # Static {
-    #     height: 1;
-    #     background: blue;
-    #     color: white;
-    # }
-    # """
+    CSS = """
+    Screen {
+        layout: vertical;
+    }
+    Container#main {
+        height: 1fr;
+    }
+    Container#status {
+        height: 1;
+    }
+    Container#footer {
+        height: 1;
+    }
+    """
 
     BINDINGS = [
         Binding("N", "show_input", "New Input"),
         Binding("d", "show_default_highlighting", "Default Rules"),
         Binding("c", "show_column_highlighting", "Column Rules"),
         Binding("S", "start_selection_mode", "Start Column Selection"),
-        # Binding("ctrl+s", "submit", "Submit", show=False),
-        # Binding("enter", "submit_highlighting", "Submit Highlighting", show=False),
     ]
 
     def __init__(self):
