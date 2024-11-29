@@ -26,64 +26,76 @@ class P2LApp(App):
 
     def compose(self) -> ComposeResult:
         self.input_area = TextArea()
-        self.input_area.visible = False  # Hide the TextArea initially
-
-        self.highlight_input_area = TextArea()
-        self.highlight_input_area.visible = False  # Hide initially
-
         self.data_table = DataTable()
+        self.status_bar = Static("Status: Ready", shrink=True)  # Status bar initialized with default message
+        self.footer = Footer()
+
+        # Initialize data structures
         self.table = pd.DataFrame()
         self.displayed_table = pd.DataFrame()
         self.default_highlighting = deepcopy(DEFAULT_HIGHLIGHTING)
         self.formatting_rules = {}
         self.reset_formatting_rules()
 
-        # Initialize the current active text area
+        # Initialize state attributes
         self.current_active_text_area = None
-
-        # Initialize selection mode attributes
         self.selection_mode = False
         self.selected_columns = []
 
-        # Initialize footers
-        self.footer = Footer()
-        self.status_bar = Static("Status: Ready")  # Status bar initialized with default message
+        # Initially, only the data_table is visible
+        self.input_area.visible = False
+        # self.rules_input.visible = False
 
-        # Yield containers in the order: input areas, data table, status bar, primary footer
+        # Yield containers in the order: data table, status bar, primary footer
         yield Container(self.input_area)
-        yield Container(self.highlight_input_area)
         yield Container(self.data_table)
         yield Container(self.status_bar)  # Status bar above the main footer
         yield Container(self.footer)
 
+    def show_widget(self, widget: str) -> None:
+        """Helper method to show the specified widget and hide others."""
+        widgets = {
+            "table_input": self.input_area,
+            "rules_input": self.input_area,
+            "column_rules_input": self.input_area,
+            "data_table": self.data_table
+        }
+        # disable visibility for all widgets
+        for w in [self.input_area, self.data_table]:
+            w.visible = False
+        # enable visibility for the selected widget
+        widgets[widget].visible = True
+
+        # for name, w in widgets.items():
+        #     w.visible = (name == widget)
+        self.current_active_text_area = widget if widget != "data_table" else None
+
     def action_show_input(self) -> None:
-        self.input_area.visible = True
+        self.show_widget("table_input")
         self.input_area.focus()
-        self.highlight_input_area.visible = False
-        self.current_active_text_area = 'input'
+        self.status_bar.update("Input mode activated.")
 
     def action_show_input_default_highlighting(self) -> None:
-        # display the highlighting rules as a json format in the text area
-        self.highlight_input_area.text = json.dumps(self.default_highlighting, indent=4)
-
-        # activate the visible text area
-        self.highlight_input_area.visible = True
-        self.highlight_input_area.focus()
-        self.input_area.visible = False
-        self.current_active_text_area = 'input_default_highlighting'
+        # Display the highlighting rules as JSON in the text area
+        self.input_area.text = json.dumps(self.default_highlighting, indent=4)
+        self.show_widget("rules_input")
+        self.input_area.focus()
+        self.status_bar.update("Default Highlighting Input mode activated.")
 
     def action_show_input_column_highlighting(self) -> None:
-        # get the name of the current cursor column
-        column_name = self.displayed_table.columns[self.data_table.cursor_column]
+        # Get the name of the current cursor column
+        try:
+            column_name = self.displayed_table.columns[self.data_table.cursor_column]
+        except IndexError:
+            self.status_bar.update("No column selected.")
+            return
 
-        # display the highlighting rules as a json format in the text area
-        self.highlight_input_area.text = json.dumps(self.formatting_rules[column_name], indent=4)
-
-        # activate the visible text area
-        self.highlight_input_area.visible = True
-        self.highlight_input_area.focus()
-        self.input_area.visible = False
-        self.current_active_text_area = 'input_column_highlighting'
+        # Display the highlighting rules as JSON in the text area
+        column_rules = self.formatting_rules.get(column_name, {})
+        self.input_area.text = json.dumps(column_rules, indent=4)
+        self.show_widget("column_rules_input")
+        self.input_area.focus()
+        self.status_bar.update(f"Column Highlighting Input mode for '{column_name}' activated.")
 
     def action_start_selection_mode(self) -> None:
         if self.table.empty:
@@ -121,38 +133,44 @@ class P2LApp(App):
 
     def action_submit(self) -> None:
         match self.current_active_text_area:
-            case 'input':
+            case 'table_input':
                 if self.input_area.visible:
                     self.submit_input()
-            case 'input_default_highlighting':
-                if self.highlight_input_area.visible:
+            case 'rules_input':
+                if self.input_area.visible:
                     self.submit_highlighting_input(self.default_highlighting)
-            case 'input_column_highlighting':
-                if self.highlight_input_area.visible:
+            case 'column_rules_input':
+                if self.input_area.visible:
                     column_name = self.displayed_table.columns[self.data_table.cursor_column]
 
                     self.submit_highlighting_input(self.formatting_rules[column_name])
+
      
     def submit_input(self) -> None:
         self.table = convert2dataframe(self.input_area.text)
         self.reset_formatting_rules()
-        self.input_area.visible = False
-        self.input_area.text = ""  # Clear the TextArea
-        self.current_active_text_area = None
         self.update_data_table()
+        self.show_widget("data_table")
+        self.refresh()
+
+        # self.input_area.visible = False
+        # self.input_area.text = ""  # Clear the TextArea
+        # self.current_active_text_area = None
 
     def submit_highlighting_input(self, update_variable: dict[str, Any]) -> None:
         try:
-            new_rules = json.loads(self.highlight_input_area.text)
+            new_rules = json.loads(self.input_area.text)
             # Convert the order to the Order enum if present
             if "order" in new_rules:
                 new_rules["order"] = Order(new_rules["order"])
 
             update_variable.update(new_rules)
-            self.highlight_input_area.visible = False
-            self.highlight_input_area.text = ""
-            self.current_active_text_area = None
+            self.status_bar.update("Highlighting rules updated.")
+            # self.input_area.visible = False
+            # self.input_area.text = ""
+            # self.current_active_text_area = None
             self.update_data_table()
+            self.show_widget("data_table")
             self.refresh()
         except json.JSONDecodeError:
             # Handle invalid JSON input. Append a message to the TextArea
