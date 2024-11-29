@@ -14,7 +14,7 @@ def read_input():
             lines.append(input())
     except EOFError:
         pass
-    return " ".join(lines)
+    return "\n".join(lines)
 
 def convert2dataframe(input_string: str):
     # strip away the part of the line after a comment symbol '%'
@@ -23,9 +23,11 @@ def convert2dataframe(input_string: str):
     input_string = re.sub(r"\n\s*\n", "\n", input_string)
     # remove the leading and trailing whitespaces
     input_string = input_string.strip()
+    # remove the \\ at the end of the line
+    input_string = re.sub(r"\\\\", "", input_string)
 
     # split the table into rows
-    rows = input_string.split("\\\\")
+    rows = input_string.split("\n")
     # split each row into columns
     rows = [row.split("&") for row in rows[:-1]]
     indices = [row[0] for row in rows]
@@ -69,7 +71,8 @@ def interacitve_highlighting():
     precisions = []
     for column in table.columns:
         print(f"Please select the order for column {column}:")
-        print("0: Minimum")
+        print("-1: Minimum")
+        print("0: Neural")
         print("1: Maximum")
         orders.append(Order(int(input("Enter the order: "))))
         print(f"Please enter the precision for column {column}:")

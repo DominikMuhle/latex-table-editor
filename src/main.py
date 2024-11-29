@@ -7,35 +7,33 @@ from utils import Axis, Order
 
 BASE_TABLE = pd.DataFrame(
     {
-        "Metric1": [1, '-', 3, 4, 5],
+        "Metric1": [1, "-", 3, 4, 5],
         "Metric2": [5, 4, 3, 2, 1],
         "Metric3": [1, 3, 5, 7, 9],
     },
-    index=[f"Method {i}" for i in range(1, 6)]
+    index=[f"Method {i}" for i in range(1, 6)],
 )
-HIGHLIGHTING_RULES = [
-    {
-        "name": "Metric1",
+HIGHLIGHTING_RULES = {
+    "Metric1": {
         "order": Order.MINIMUM,
         "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
         "default": "%s",
         "precision": "%.3f",
     },
-    {
-        "name": "Metric2",
+    "Metric2": {
         "order": Order.MAXIMUM,
         "highlighting": ["\{\color{red}{%s}}", "\{\color{green}{%s}}"],
         "default": "%s",
         "precision": "%.3f",
     },
-    {
-        "name": "Metric3",
+    "Metric3": {
         "order": Order.MAXIMUM,
         "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
         "default": "%s",
         "precision": "%.2f",
     },
-]
+}
+
 
 def main() -> None:
     print(interacitve_highlighting().to_latex())

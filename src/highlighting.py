@@ -28,6 +28,8 @@ def column_highlighting(df_column: pd.DataFrame, indices: list[int], order: Orde
     match order:
         case Order.MINIMUM:
             extrema = df_column_numeric.iloc[indices].nsmallest(num_highlights)
+        case Order.NEUTRAL:
+            extrema = []
         case Order.MAXIMUM:
             extrema = df_column_numeric.iloc[indices].nlargest(num_highlights)
 
@@ -72,7 +74,7 @@ def table_highlighting(
     return dataframe
 
 
-def table_highlighting_by_name(dataframe: pd.DataFrame, axis: Axis, metrics: list[dict[str, Any]], ignore_idx: list[int] | None = None) -> pd.DataFrame:
+def table_highlighting_by_name(dataframe: pd.DataFrame, axis: Axis, formatting_rules: dict[str, dict[str, Any]], ignore_idx: list[int] | None = None) -> pd.DataFrame:
     if axis == Axis.ROW:
         # transpose the dataframe to make the row operations column operations
         dataframe = dataframe.T
@@ -82,12 +84,11 @@ def table_highlighting_by_name(dataframe: pd.DataFrame, axis: Axis, metrics: lis
         ignore_idx = []
     remaining_indices = [idx for idx in range(rows) if idx not in ignore_idx]
 
-    for metric in metrics:
-        name = metric["name"]
-        order = metric.get("order", Order.MINIMUM)
-        highlighting = metric.get("highlighting", ["\\bfseries{%s}", "\\underline{%s}"])
-        default = metric.get("default", "%s")
-        precision = metric.get("precision", "%.3f")
+    for name, rules in formatting_rules.items():
+        order = rules.get("order", Order.MINIMUM)
+        highlighting = rules.get("highlighting", ["\\bfseries{%s}", "\\underline{%s}"])
+        default = rules.get("default", "%s")
+        precision = rules.get("precision", "%.3f")
 
         dataframe[name] = column_highlighting(dataframe[name], remaining_indices, order, highlighting, default, precision)
 

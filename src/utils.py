@@ -6,5 +6,6 @@ class Axis(Enum):
     COLUMN = 1
 
 class Order(Enum):
-    MINIMUM = 0
+    MINIMUM = -1
+    NEUTRAL = 0
     MAXIMUM = 1

@@ -8,6 +8,7 @@ dependencies = [
     "jinja2>=3.1.4",
     "pandas>=2.2.3",
     "pytest>=8.3.3",
+    "textual>=0.87.1",
 ]
 
 [tool.pytest.ini_options]
