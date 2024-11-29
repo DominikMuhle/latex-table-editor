@@ -11,7 +11,7 @@ from utils import Axis, Order
 
 class P2LApp(App):
     BINDINGS = [
-        Binding("n", "show_input", "New Input"),
+        Binding("N", "show_input", "New Input"),
         Binding("ctrl+s", "submit_input", show=False),
     ]
 
@@ -20,7 +20,13 @@ class P2LApp(App):
         self.input_area.visible = False  # Hide the TextArea initially
         self.data_table = DataTable()
         self.table = pd.DataFrame()
-        self.displayed_table = pd.DataFrame()   
+        self.displayed_table = pd.DataFrame()
+        self.default_highlighting = {
+            "order": Order.NEUTRAL,
+            "highlighting": ["%s"],
+            "default": "%s",
+            "precision": "%.2f",
+        } 
         self.formatting_rules = {}
         self.reset_formatting_rules()
 
@@ -43,7 +49,7 @@ class P2LApp(App):
     def update_data_table(self):
         # copy the table to avoid modifying the original table
         self.displayed_table = deepcopy(self.table)
-        self.displayed_table = table_highlighting_by_name(self.displayed_table, Axis.COLUMN, self.formatting_rules)
+        self.displayed_table = table_highlighting_by_name(self.displayed_table, Axis.COLUMN, self.formatting_rules, self.default_highlighting)
 
         self.data_table.clear(columns=True)
         # add the columns with the index column
@@ -58,12 +64,14 @@ class P2LApp(App):
         formatting_rules = {}
         for col in self.table.columns:
             formatting_rules[col] = {
-                "order": Order.NEUTRAL,
-                "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
-                "default": "%s",
-                "precision": "%.3f",
             }
 
+        self.default_highlighting = {
+            "order": Order.NEUTRAL,
+            "highlighting": ["%s"],
+            "default": "%s",
+            "precision": "%.2f",
+        }
         self.formatting_rules = formatting_rules
 
 
