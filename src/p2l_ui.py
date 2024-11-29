@@ -1,8 +1,9 @@
 from copy import deepcopy
 import json
+from os import wait
 from typing import Any
 from textual.app import App, ComposeResult
-from textual.widgets import Footer, TextArea, DataTable
+from textual.widgets import Footer, TextArea, DataTable, Static
 from textual.containers import Container
 from textual.binding import Binding
 
@@ -16,7 +17,9 @@ class P2LApp(App):
         Binding("N", "show_input", "New Input"),
         Binding("d", "show_input_default_highlighting", "Default Rules"),
         Binding("c", "show_input_column_highlighting", "Column Rules"),
+        Binding("S", "start_selection_mode", "Swap Mode"),
         Binding("ctrl+s", "submit", "Submit"),
+        Binding("s", "column_selection", "Select Column", show=False),
     ]
 
     def compose(self) -> ComposeResult:
@@ -36,10 +39,20 @@ class P2LApp(App):
         # Initialize the current active text area
         self.current_active_text_area = None
 
+        # Initialize selection mode attributes
+        self.selection_mode = False
+        self.selected_columns = []
+
+        # Initialize footers
+        self.footer = Footer()
+        self.status_bar = Static("Status: Ready")  # Status bar initialized with default message
+
+        # Yield containers in the order: input areas, data table, status bar, primary footer
         yield Container(self.input_area)
         yield Container(self.highlight_input_area)
         yield Container(self.data_table)
-        yield Footer()
+        yield Container(self.status_bar)  # Status bar above the main footer
+        yield Container(self.footer)
 
     def action_show_input(self) -> None:
         self.input_area.visible = True
@@ -70,6 +83,40 @@ class P2LApp(App):
         self.input_area.visible = False
         self.current_active_text_area = 'input_column_highlighting'
 
+    def action_start_selection_mode(self) -> None:
+        if self.table.empty:
+            self.status_bar.update("No data available to select columns.")
+            return
+        self.selection_mode = True
+        self.selected_columns = []
+        self.status_bar.update("Selection Mode: Select two columns by pressing Enter on each.")
+
+    def disable_selection_mode(self) -> None:
+        self.selection_mode = False
+        self.selected_columns = []
+        self.status_bar.update("Exiting Selection Mode.")
+
+    def action_column_selection(self) -> None:
+        try:
+            column_name = self.displayed_table.columns[self.data_table.cursor_column]
+        except IndexError:
+            self.status_bar.update("Invalid column selection.")
+            return
+
+        if column_name in self.selected_columns:
+            self.status_bar.update(f"Column '{column_name}' is already selected.")
+            return
+
+        self.selected_columns.append(column_name)
+        self.status_bar.update(f"Selected '{column_name}'. Select {2 - len(self.selected_columns)} more column(s).")
+
+        if len(self.selected_columns) == 2:
+            col1, col2 = self.selected_columns
+            self.swap_columns(col1, col2)
+            self.status_bar.update(f"Swapped columns '{col1}' and '{col2}'. Exiting Selection Mode.")
+            self.disable_selection_mode()
+
+
     def action_submit(self) -> None:
         match self.current_active_text_area:
             case 'input':
@@ -83,8 +130,7 @@ class P2LApp(App):
                     column_name = self.displayed_table.columns[self.data_table.cursor_column]
 
                     self.submit_highlighting_input(self.formatting_rules[column_name])
-            
-
+     
     def submit_input(self) -> None:
         self.table = convert2dataframe(self.input_area.text)
         self.reset_formatting_rules()
@@ -120,6 +166,19 @@ class P2LApp(App):
 
         for _, row in self.displayed_table.iterrows():
             self.data_table.add_row(*[str(value) for value in row], key=str(row.name))
+
+    def swap_columns(self, col1: str, col2: str) -> None:
+        # Swap columns in the DataFrame
+        cols = list(self.displayed_table.columns)
+        idx1, idx2 = cols.index(col1), cols.index(col2)
+        cols[idx1], cols[idx2] = cols[idx2], cols[idx1]
+        # self.displayed_table = self.displayed_table[cols]
+
+        # Also update the underlying table if necessary
+        self.table = self.table[cols]
+
+        self.update_data_table()
+        # self.footer.update(f"Swapped columns '{col1}' and '{col2}'.")
 
 
     def reset_formatting_rules(self):
