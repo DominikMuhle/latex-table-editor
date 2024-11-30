@@ -66,8 +66,6 @@ class DataTableScreen(Screen):
 
     async def on_mount(self) -> None:
         """Initialize the DataTable with data."""
-        # app = self.app
-        # app.draw_table()
         self.data_table.cursor_type = "cell"
 
     async def on_click(self, message: Click) -> None:
