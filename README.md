@@ -57,11 +57,16 @@ When the application starts, users can interact with their data through a series
    - Submit the rules by pressing `Ctrl+S`.
    - The table updates to reflect the new highlighting, emphasizing important data points based on the rules provided.
 
-4. **Manipulating Columns**:
-   - Activate swap mode by pressing `S`.
-   - Select columns to swap by navigating to them and pressing `s`.
-   - Swap selected columns to reorganize the data layout.
-   - Toggle column order (minimum, neutral, maximum) by selecting a column header.
+4. **Manipulating Data**:
+   - **Toggle Mode**:
+     - Press `T` to toggle between column mode and row mode.
+     - In column mode, you can manipulate columns; in row mode, you can manipulate rows.
+   - **Swapping Columns or Rows**:
+     - Activate swap mode by pressing `S`.
+     - Select columns or rows to swap by navigating to them and pressing `s`.
+     - Swap selected columns or rows to reorganize the data layout.
+   - **Toggling Order**:
+     - Toggle column or row order (minimum, neutral, maximum) by selecting a column or row header.
 
 5. **Preparing for LaTeX Export**:
    - After making all desired modifications, the application formats the data for LaTeX export.

@@ -19,6 +19,15 @@ from highlighting import DEFAULT_RULES, table_highlighting_by_name
 
 class DataTableScreen(Screen):
     """Screen displaying the DataTable."""
+    BINDINGS = [
+        Binding("N", "show_input", "New Input"),
+        Binding("T", "toggle_mode", "Toggle Row/Column Mode"),
+        Binding("d", "show_edit_default_rules", "Edit Default Rules"),
+        Binding("e", "show_edit_rules", "Edit Rules"),
+        Binding("S", "start_selection_mode", "Start Swap Mode"),
+        Binding("s", "data_selection", "Select Row/Column", show=False),
+        Binding("click", "handle_click", "Toggle Order"),
+    ]
 
     def compose(self) -> ComposeResult:
         self.app: P2LApp
@@ -115,45 +124,69 @@ class DataTableScreen(Screen):
 
     async def action_start_selection_mode(self) -> None:
         if self.app.table.empty:
-            self.status_bar.update("No data available to select columns.")
+            match self.app.mode:
+                case Axis.ROW:
+                    self.status_bar.update("No data available to select rows.")
+                case Axis.COLUMN:
+                    self.status_bar.update("No data available to select columns.")
             return
         self.selection_mode = True
-        self.selected_columns = []
-        self.status_bar.update(
-            "Selection Mode: Select two columns by pressing 's' on each."
-        )
+        self.selected_data = []
+        match self.app.mode:
+            case Axis.ROW:
+                self.status_bar.update(
+                    "Selection Mode: Select two rows by pressing 's' on each."
+                )
+            case Axis.COLUMN:
+                self.status_bar.update(
+                    "Selection Mode: Select two columns by pressing 's' on each."
+                )
 
     async def disable_selection_mode(self) -> None:
         self.selection_mode = False
-        self.selected_columns = []
+        self.selected_data = []
         self.status_bar.update("Exiting Selection Mode.")
 
-    async def action_column_selection(self) -> None:
+    async def action_data_selection(self) -> None:
+        if not self.selection_mode:
+            return
+        if self.app.mode == Axis.COLUMN:
+            items = self.app.displayed_table.columns
+            cursor_position = self.data_table.cursor_column
+            item_type = "column"
+            swap_method = self.app.swap_columns
+        elif self.app.mode == Axis.ROW:
+            items = self.app.displayed_table.index
+            cursor_position = self.data_table.cursor_row
+            item_type = "row"
+            swap_method = self.app.swap_rows
+        else:
+            self.status_bar.update("Invalid mode.")
+            return
+
         try:
-            column_name = self.app.displayed_table.columns[
-                self.data_table.cursor_column
-            ]
+            item_name = items[cursor_position]
         except IndexError:
-            self.status_bar.update("Invalid column selection.")
+            self.status_bar.update(f"Invalid {item_type} selection.")
             return
 
-        if column_name in self.selected_columns:
-            self.status_bar.update(f"Column '{column_name}' is already selected.")
+        if item_name in self.selected_data:
+            self.status_bar.update(f"{item_type.capitalize()} '{item_name}' is already selected.")
             return
 
-        self.selected_columns.append(column_name)
-        self.status_bar.update(
-            f"Selected '{column_name}'. Select {2 - len(self.selected_columns)} more column(s)."
-        )
-
-        if len(self.selected_columns) == 2:
-            col1, col2 = self.selected_columns
-            self.app.swap_columns(col1, col2)
+        self.selected_data.append(item_name)
+        remaining = 2 - len(self.selected_data)
+        if remaining > 0:
             self.status_bar.update(
-                f"Swapped columns '{col1}' and '{col2}'. Exiting Selection Mode."
+                f"Selected '{item_name}'. Select {remaining} more {item_type}(s)."
+            )
+        else:
+            item1, item2 = self.selected_data
+            swap_method(item1, item2)
+            self.status_bar.update(
+                f"Swapped {item_type}s '{item1}' and '{item2}'. Exiting Selection Mode."
             )
             await self.disable_selection_mode()
-
 
 class InputScreen(Screen):
     """Screen for table input."""
@@ -249,11 +282,11 @@ class P2LApp(App):
 
     BINDINGS = [
         Binding("N", "show_input", "New Input"),
-        Binding("T", "toggle_mode", "Toggle row/column mode"),
+        Binding("T", "toggle_mode", "Toggle Row/Column Mode"),
         Binding("d", "show_edit_default_rules", "Edit Default Rules"),
         Binding("e", "show_edit_rules", "Edit Rules"),
         Binding("S", "start_selection_mode", "Start Swap Mode"),
-        Binding("s", "column_selection", "Select Column", show=False),
+        Binding("s", "data_selection", "Select Row/Column", show=False),
         Binding("click", "handle_click", "Toggle Order"),
     ]
 
@@ -418,6 +451,27 @@ class P2LApp(App):
         self.data_table_screen.status_bar.update(
             f"Swapped columns '{col1}' and '{col2}'."
         )
+
+    def swap_rows(self, row1: str, row2: str) -> None:
+        """Swap two rows in the DataFrame."""
+        if (
+            row1 not in self.displayed_table.index
+            or row2 not in self.displayed_table.index
+        ):
+            self.data_table_screen.status_bar.update("One or both rows do not exist.")
+            return
+
+        # Swap rows in the DataFrame
+        rows = list(self.displayed_table.index)
+        idx1, idx2 = rows.index(row1), rows.index(row2)
+        rows[idx1], rows[idx2] = rows[idx2], rows[idx1]
+        self.displayed_table = self.displayed_table.reindex(rows)
+
+        # Also update the underlying table if necessary
+        self.table = self.table.reindex(rows)
+
+        self.draw_table()
+        self.data_table_screen.status_bar.update(f"Swapped rows '{row1}' and '{row2}'.")
 
     def draw_table(self) -> None:
         """Draw the table with highlighting."""
