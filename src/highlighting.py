@@ -7,9 +7,9 @@ import pandas as pd
 
 from utils import Axis, Order
 
-DEFAULT_HIGHLIGHTING = {
+DEFAULT_RULES = {
     "order": Order.NEUTRAL,
-    "highlighting": ["%s"],
+    "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
     "default": "%s",
     "precision": "%.2f",
 }
@@ -81,16 +81,16 @@ def table_highlighting(
     return dataframe
 
 
-def table_highlighting_by_name(dataframe: pd.DataFrame, axis: Axis, formatting_rules: dict[str, dict[str, Any]], default_highlighting: dict[str, Any] = {}, ignore_idx: list[int] | None = None) -> pd.DataFrame:
+def table_highlighting_by_name(dataframe: pd.DataFrame, axis: Axis, column_override_rules: dict[str, dict[str, Any]], default_rules: dict[str, Any] = {}, ignore_idx: list[int] | None = None) -> pd.DataFrame:
     if axis == Axis.ROW:
         # transpose the dataframe to make the row operations column operations
         dataframe = dataframe.T
 
     missing_keys = []
-    for key in DEFAULT_HIGHLIGHTING.keys():
-        if key not in default_highlighting:
+    for key in DEFAULT_RULES.keys():
+        if key not in default_rules:
             missing_keys.append(key)
-            default_highlighting[key] = DEFAULT_HIGHLIGHTING[key]
+            default_rules[key] = DEFAULT_RULES[key]
     if missing_keys:
         warnings.warn(f"The following keys were missing in the default highlighting: {missing_keys}")
 
@@ -100,11 +100,11 @@ def table_highlighting_by_name(dataframe: pd.DataFrame, axis: Axis, formatting_r
         ignore_idx = []
     remaining_indices = [idx for idx in range(rows) if idx not in ignore_idx]
 
-    for name, rules in formatting_rules.items():
-        order = rules.get("order", default_highlighting["order"])
-        highlighting = rules.get("highlighting", default_highlighting["highlighting"])
-        default = rules.get("default", default_highlighting["default"])
-        precision = rules.get("precision", default_highlighting["precision"])
+    for name, rules in column_override_rules.items():
+        order = rules.get("order", default_rules["order"])
+        highlighting = rules.get("highlighting", default_rules["highlighting"])
+        default = rules.get("default", default_rules["default"])
+        precision = rules.get("precision", default_rules["precision"])
 
         dataframe[name] = column_highlighting(dataframe[name], remaining_indices, order, highlighting, default, precision)
 
