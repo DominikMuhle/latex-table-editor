@@ -19,12 +19,6 @@ from highlighting import DEFAULT_RULES, table_highlighting_by_name
 
 class DataTableScreen(Screen):
     """Screen displaying the DataTable."""
-    BINDINGS = [
-        Binding("N", "show_input", "New Input"),
-        Binding("S", "start_selection_mode", "Start Swap Mode"),
-        Binding("s", "column_selection", "Select Column", show=False),
-        Binding("click", "handle_click", "Toggle Order"),
-    ]
 
     def compose(self) -> ComposeResult:
         self.app: P2LApp
@@ -44,7 +38,12 @@ class DataTableScreen(Screen):
                 rule_overrides = self.app.row_rules_overrides
             case Axis.COLUMN:
                 rule_overrides = self.app.col_rules_overrides
-        self.app.displayed_table = table_highlighting_by_name(self.app.displayed_table, self.app.mode, rule_overrides, self.app.default_rules)
+        self.app.displayed_table = table_highlighting_by_name(
+            self.app.displayed_table,
+            self.app.mode,
+            rule_overrides,
+            self.app.default_rules,
+        )
 
         self.data_table.clear(columns=True)
         # add the columns with the index column
@@ -55,7 +54,9 @@ class DataTableScreen(Screen):
                 continue
 
             # get the ordering of the columns
-            order = self.app.col_rules_overrides.get(col, {}).get("order", self.app.default_rules["order"])
+            order = self.app.col_rules_overrides.get(col, {}).get(
+                "order", self.app.default_rules["order"]
+            )
             match order:
                 case Order.MINIMUM:
                     column_names.append(f"{str(col)} (v)")
@@ -69,7 +70,9 @@ class DataTableScreen(Screen):
         for _, row in self.app.displayed_table.iterrows():
             name = str(row.name)
             if self.app.mode == Axis.ROW:
-                order = self.app.row_rules_overrides.get(name, {}).get("order", self.app.default_rules["order"])
+                order = self.app.row_rules_overrides.get(name, {}).get(
+                    "order", self.app.default_rules["order"]
+                )
                 match order:
                     case Order.MINIMUM:
                         name = f"{name} (v)"
@@ -78,7 +81,9 @@ class DataTableScreen(Screen):
                     case Order.MAXIMUM:
                         name = f"{name} (^)"
 
-            self.data_table.add_row(*[str(value) for value in row], key=str(row.name), label=name)
+            self.data_table.add_row(
+                *[str(value) for value in row], key=str(row.name), label=name
+            )
         self.refresh()
 
     async def on_mount(self) -> None:
@@ -114,7 +119,9 @@ class DataTableScreen(Screen):
             return
         self.selection_mode = True
         self.selected_columns = []
-        self.status_bar.update("Selection Mode: Select two columns by pressing 's' on each.")
+        self.status_bar.update(
+            "Selection Mode: Select two columns by pressing 's' on each."
+        )
 
     async def disable_selection_mode(self) -> None:
         self.selection_mode = False
@@ -123,7 +130,9 @@ class DataTableScreen(Screen):
 
     async def action_column_selection(self) -> None:
         try:
-            column_name = self.app.displayed_table.columns[self.data_table.cursor_column]
+            column_name = self.app.displayed_table.columns[
+                self.data_table.cursor_column
+            ]
         except IndexError:
             self.status_bar.update("Invalid column selection.")
             return
@@ -133,17 +142,22 @@ class DataTableScreen(Screen):
             return
 
         self.selected_columns.append(column_name)
-        self.status_bar.update(f"Selected '{column_name}'. Select {2 - len(self.selected_columns)} more column(s).")
+        self.status_bar.update(
+            f"Selected '{column_name}'. Select {2 - len(self.selected_columns)} more column(s)."
+        )
 
         if len(self.selected_columns) == 2:
             col1, col2 = self.selected_columns
             self.app.swap_columns(col1, col2)
-            self.status_bar.update(f"Swapped columns '{col1}' and '{col2}'. Exiting Selection Mode.")
+            self.status_bar.update(
+                f"Swapped columns '{col1}' and '{col2}'. Exiting Selection Mode."
+            )
             await self.disable_selection_mode()
 
 
 class InputScreen(Screen):
     """Screen for table input."""
+
     BINDINGS = [
         Binding("ctrl+s", "submit", "Submit"),
     ]
@@ -172,10 +186,11 @@ class InputScreen(Screen):
         """Handle submission of input data."""
         # app = self.app
         self.dismiss(convert2dataframe(self.input_area.text))
-    
+
 
 class HighlightingInputScreen(Screen):
     """Screen for default or column highlighting input."""
+
     BINDINGS = [
         Binding("ctrl+s", "submit", "Submit"),
     ]
@@ -216,6 +231,7 @@ class HighlightingInputScreen(Screen):
 
 class P2LApp(App):
     """Main application class."""
+
     CSS = """
     Screen {
         layout: vertical;
@@ -233,10 +249,12 @@ class P2LApp(App):
 
     BINDINGS = [
         Binding("N", "show_input", "New Input"),
+        Binding("T", "toggle_mode", "Toggle row/column mode"),
         Binding("d", "show_edit_default_rules", "Edit Default Rules"),
         Binding("e", "show_edit_rules", "Edit Rules"),
-        Binding("T", "toggle_mode", "Toggle row/column mode"),
-        Binding("S", "start_selection_mode", "Start Column Selection"),
+        Binding("S", "start_selection_mode", "Start Swap Mode"),
+        Binding("s", "column_selection", "Select Column", show=False),
+        Binding("click", "handle_click", "Toggle Order"),
     ]
 
     def __init__(self):
@@ -270,7 +288,8 @@ class P2LApp(App):
 
     async def action_show_input(self) -> None:
         """Show the input screen for table input."""
-        def update_table(table : pd.DataFrame | None) -> None:
+
+        def update_table(table: pd.DataFrame | None) -> None:
             if table is not None:
                 self.table = table
                 self.reset_formatting_rules()
@@ -290,15 +309,21 @@ class P2LApp(App):
 
     async def action_show_edit_default_rules(self) -> None:
         """Show the input screen for editing the default highlighting rules."""
-        def update_highlighting(highlighting : dict[str, Any] | None) -> None:
+
+        def update_highlighting(highlighting: dict[str, Any] | None) -> None:
             if highlighting is not None:
                 self.default_rules = highlighting
                 self.draw_table()
-                self.data_table_screen.status_bar.update("Default Highlighting rules updated.")
+                self.data_table_screen.status_bar.update(
+                    "Default Highlighting rules updated."
+                )
             else:
                 self.data_table_screen.status_bar.update("Invalid highlighting rules.")
 
-        self.push_screen(HighlightingInputScreen(json.dumps(self.default_rules, indent=4)), update_highlighting)
+        self.push_screen(
+            HighlightingInputScreen(json.dumps(self.default_rules, indent=4)),
+            update_highlighting,
+        )
         self.draw_table()
 
     async def action_show_edit_rules(self) -> None:
@@ -313,53 +338,71 @@ class P2LApp(App):
         """Show the input screen for column-specific highlighting rules."""
         # Get the name of the current cursor column from DataTableScreen
         try:
-            column_name = self.displayed_table.columns[self.data_table_screen.data_table.cursor_column]
+            column_name = self.displayed_table.columns[
+                self.data_table_screen.data_table.cursor_column
+            ]
         except (IndexError, AttributeError):
             self.data_table_screen.status_bar.update("No column selected.")
             return
-        
-        def update_highlighting(highlighting : dict[str, Any] | None) -> None:
+
+        def update_highlighting(highlighting: dict[str, Any] | None) -> None:
             if highlighting is not None:
                 self.col_rules_overrides[column_name] = highlighting
                 self.draw_table()
-                self.data_table_screen.status_bar.update(f"Highlighting rules updated for '{column_name}'.")
+                self.data_table_screen.status_bar.update(
+                    f"Highlighting rules updated for '{column_name}'."
+                )
             else:
                 self.data_table_screen.status_bar.update("Invalid highlighting rules.")
 
         self.current_highlighting_target = column_name
         column_rules = self.col_rules_overrides.get(column_name, {})
 
-        self.push_screen(HighlightingInputScreen(json.dumps(column_rules, indent=4)), update_highlighting)
+        self.push_screen(
+            HighlightingInputScreen(json.dumps(column_rules, indent=4)),
+            update_highlighting,
+        )
         self.draw_table()
 
     async def show_row_rules(self) -> None:
         """Show the input screen for row-specific highlighting rules."""
         # Get the name of the current cursor row from DataTableScreen
         try:
-            row_name = self.displayed_table.index[self.data_table_screen.data_table.cursor_row]
+            row_name = self.displayed_table.index[
+                self.data_table_screen.data_table.cursor_row
+            ]
         except (IndexError, AttributeError):
             self.data_table_screen.status_bar.update("No row selected.")
             return
 
-        def update_highlighting(highlighting : dict[str, Any] | None) -> None:
+        def update_highlighting(highlighting: dict[str, Any] | None) -> None:
             if highlighting is not None:
                 self.row_rules_overrides[row_name] = highlighting
                 self.draw_table()
-                self.data_table_screen.status_bar.update(f"Highlighting rules updated for '{row_name}'.")
+                self.data_table_screen.status_bar.update(
+                    f"Highlighting rules updated for '{row_name}'."
+                )
             else:
                 self.data_table_screen.status_bar.update("Invalid highlighting rules.")
 
         self.current_highlighting_target = row_name
         row_rules = self.row_rules_overrides.get(row_name, {})
 
-        self.push_screen(HighlightingInputScreen(json.dumps(row_rules, indent=4)), update_highlighting)
+        self.push_screen(
+            HighlightingInputScreen(json.dumps(row_rules, indent=4)),
+            update_highlighting,
+        )
         self.draw_table()
-
 
     def swap_columns(self, col1: str, col2: str) -> None:
         """Swap two columns in the DataFrame."""
-        if col1 not in self.displayed_table.columns or col2 not in self.displayed_table.columns:
-            self.data_table_screen.status_bar.update("One or both columns do not exist.")
+        if (
+            col1 not in self.displayed_table.columns
+            or col2 not in self.displayed_table.columns
+        ):
+            self.data_table_screen.status_bar.update(
+                "One or both columns do not exist."
+            )
             return
 
         # Swap columns in the DataFrame
@@ -372,8 +415,9 @@ class P2LApp(App):
         self.table = self.table[cols]
 
         self.draw_table()
-        self.data_table_screen.status_bar.update(f"Swapped columns '{col1}' and '{col2}'.")
-
+        self.data_table_screen.status_bar.update(
+            f"Swapped columns '{col1}' and '{col2}'."
+        )
 
     def draw_table(self) -> None:
         """Draw the table with highlighting."""
@@ -381,7 +425,9 @@ class P2LApp(App):
 
     def toggle_column_order(self, column_name: str) -> None:
         """Toggle the order of the specified column between min, neutral, and max."""
-        current_order = self.col_rules_overrides[column_name].get("order", self.default_rules["order"])
+        current_order = self.col_rules_overrides[column_name].get(
+            "order", self.default_rules["order"]
+        )
 
         # Define the toggle sequence
         match current_order:
@@ -396,14 +442,18 @@ class P2LApp(App):
         self.col_rules_overrides[column_name]["order"] = new_order
 
         # Update the status bar
-        self.data_table_screen.status_bar.update(f"Column '{column_name}' order set to {new_order.name}.")
+        self.data_table_screen.status_bar.update(
+            f"Column '{column_name}' order set to {new_order.name}."
+        )
 
         # Re-apply highlighting with updated order
         self.draw_table()
 
     def toggle_row_order(self, row_name: str) -> None:
         """Toggle the order of the specified row between min, neutral, and max."""
-        current_order = self.row_rules_overrides[row_name].get("order", self.default_rules["order"])
+        current_order = self.row_rules_overrides[row_name].get(
+            "order", self.default_rules["order"]
+        )
 
         # Define the toggle sequence
         match current_order:
@@ -418,10 +468,13 @@ class P2LApp(App):
         self.row_rules_overrides[row_name]["order"] = new_order
 
         # Update the status bar
-        self.data_table_screen.status_bar.update(f"Row '{row_name}' order set to {new_order.name}.")
+        self.data_table_screen.status_bar.update(
+            f"Row '{row_name}' order set to {new_order.name}."
+        )
 
         # Re-apply highlighting with updated order
         self.draw_table()
+
 
 # Ensure the App runs only if executed as the main module
 if __name__ == "__main__":
