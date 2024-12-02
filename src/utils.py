@@ -41,6 +41,7 @@ def filter_rule_keys(rules: RULES) -> tuple[RULES, list[str]]:
     for key in rules.keys():
         if key not in AVAILABLE_RULES:
             pop_keys.append(key)
-            rules.pop(key)
-
+    for key in pop_keys:
+        rules.pop(key)
+        
     return rules, pop_keys

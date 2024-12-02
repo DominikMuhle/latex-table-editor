@@ -1,7 +1,26 @@
-Bar {
-    height: 5;
-    content-align: center middle;
-    text-style: bold;
-    margin: 1 2;
-    color: $text;
+LatexOutputScreen {
+    layout: vertical;
+}
+
+#main {
+    height: 1fr;
+}
+#status {
+    height: 1;
+}
+#footer {
+    height: 1;
+}
+
+Screen {
+    layout: vertical;
+}
+Container#main {
+    height: 1fr;
+}
+Container#status {
+    height: 1;
+}
+Container#footer {
+    height: 1;
 }

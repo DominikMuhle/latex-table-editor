@@ -1,10 +1,11 @@
 # Python
 
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 from textual.app import App, ComposeResult
 from textual.containers import Container
-from textual.widgets import TextArea, DataTable, Footer, Static
+from textual.widgets import TextArea, DataTable, Footer, Static, Input
 from textual.binding import Binding
 from textual.events import Click
 from textual.screen import Screen
@@ -20,16 +21,21 @@ class LATeXOutputScreen(Screen):
     """Screen for LaTeX output."""
     BINDINGS = [
         Binding("r", "dismiss", "Return to DataTable"),
+        Binding("ctrl+s", "save_to_file", "Save to File"),
     ]
 
     def compose(self) -> ComposeResult:
         self.app: P2LApp
-        self.latex_output_area = TextArea(read_only=True)
-        self.status_bar = Static("Status: Ready")
-        self.footer = Footer()
-        yield Container(self.latex_output_area, id="main")
-        yield Container(self.status_bar, id="status")
-        yield Container(self.footer, id="footer")
+        self.latex_output_area = TextArea(read_only=True, id="latex_output")
+        self.status_bar = Static("Status: Ready", id="status")
+        self.input = Input(placeholder="Enter the file name", id="input")
+        self.footer = Footer(id="footer")
+
+        yield self.latex_output_area
+        yield self.input
+        yield self.status_bar
+        yield self.footer
+
 
     async def on_mount(self) -> None:
         """Focus on the LaTeX output area when the screen is mounted."""
@@ -47,11 +53,30 @@ class LATeXOutputScreen(Screen):
             rule_overrides,
             self.app.default_rules,
         )
-        self.latex_output_area.text = manipulated_table.to_latex()
+        self.latex_output_area.text = manipulated_table.to_latex()#
+        # focus on the input area
+        self.input.focus()
 
     async def action_dismiss(self) -> None:
         """Dismiss the LaTeX output screen."""
         await self.dismiss()
+
+    async def action_save_to_file(self) -> None:
+        """Save the LaTeX output to a file."""
+        # check if the input is empty
+        if not self.input.value:
+            self.status_bar.update("Please enter a file name.")
+            return
+
+        file_name = Path(self.input.value)
+        # check if parent directory exists
+        if not file_name.parent.exists():
+            self.status_bar.update("Parent directory does not exist.")
+            return
+        
+        with open(file_name, "w") as file:
+            file.write(self.latex_output_area.text)
+        self.status_bar.update(f"Saved LaTeX output to '{file_name}'.")
 
 
 class DataTableScreen(Screen):
@@ -311,6 +336,7 @@ class HighlightingInputScreen(Screen):
             )
 
         # Filter out the keys that don't have matching types
+        pop_keys = []
         for key, value in rules.items():
             if key not in AVAILABLE_RULES:
                 continue
@@ -320,29 +346,16 @@ class HighlightingInputScreen(Screen):
                 self.status_bar.update(
                     f"Invalid value '{value}' for key '{key}'. Expected '{rule_type}' . It has been removed."
                 )
-                rules.pop(key)
+                pop_keys.append(key)
+        rules.pop(key)
 
-        
         return rules
         
 
 class P2LApp(App):
     """Main application class."""
 
-    CSS = """
-    Screen {
-        layout: vertical;
-    }
-    Container#main {
-        height: 1fr;
-    }
-    Container#status {
-        height: 1;
-    }
-    Container#footer {
-        height: 1;
-    }
-    """
+    CSS_PATH = "p2l_ui.tcss"
 
     BINDINGS = [
         Binding("N", "show_input", "New Input"),
