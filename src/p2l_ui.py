@@ -4,23 +4,49 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 from textual.app import App, ComposeResult
-from textual.containers import Container
+from textual.containers import Container, Grid
 from textual.widgets import TextArea, DataTable, Footer, Static, Input
 from textual.binding import Binding
 from textual.events import Click
-from textual.screen import Screen
+from textual.screen import Screen, ModalScreen
 import pandas as pd
 import json
 
 from interactive import convert2dataframe
-from utils import AVAILABLE_RULES, RULES, RULE_TYPES, Axis, Order, filter_rule_keys, is_instance_of_union
+from utils import AVAILABLE_RULES, RULES, Axis, Order, filter_rule_keys, is_instance_of_union
 from highlighting import DEFAULT_RULES, table_highlighting_by_name
 
+WELCOME_TEXT = """Welcome to P2L!\n
+P2L is a tool that allows you to convert LaTeX tables to Pandas DataFrames and vice versa.\n
+It also provides a way to highlight the table data based on certain rules.\n
+Press 'N' to start a new input.\n
+"""
 
-class LATeXOutputScreen(Screen):
+class WelcomeScreen(ModalScreen):
+    """Welcome screen of the application."""
+
+    BINDINGS = [
+        Binding("N", "show_input", "New Input"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        self.app: P2LApp
+        self.welcome_text = Static(WELCOME_TEXT, id="welcome")
+
+        yield Container(
+            self.welcome_text,
+            id="main"
+        )
+
+    async def action_show_input(self) -> None:
+        """Show the input screen for table input."""
+        self.dismiss()
+        await self.app.action_show_input()
+
+class LATeXOutputScreen(ModalScreen):
     """Screen for LaTeX output."""
     BINDINGS = [
-        Binding("r", "dismiss", "Return to DataTable"),
+        Binding("ctrl+r", "dismiss", "Return to DataTable"),
         Binding("ctrl+s", "save_to_file", "Save to File"),
     ]
 
@@ -31,8 +57,11 @@ class LATeXOutputScreen(Screen):
         self.input = Input(placeholder="Enter the file name", id="input")
         self.footer = Footer(id="footer")
 
-        yield self.latex_output_area
-        yield self.input
+        yield Container(
+            self.latex_output_area,
+            self.input,
+            id="main"
+        )
         yield self.status_bar
         yield self.footer
 
@@ -82,11 +111,11 @@ class LATeXOutputScreen(Screen):
 class DataTableScreen(Screen):
     """Screen displaying the DataTable."""
     BINDINGS = [
-        Binding("N", "show_input", "New Input"),
-        Binding("T", "toggle_mode", "Toggle Row/Column Mode"),
-        Binding("L", "show_latex_output", "Show LaTeX Output"),
-        Binding("d", "show_edit_default_rules", "Edit Default Rules"),
-        Binding("e", "show_edit_rules", "Edit Rules"),
+        # Binding("N", "show_input", "New Input"),
+        # Binding("T", "toggle_mode", "Toggle Row/Column Mode"),
+        # Binding("L", "show_latex_output", "Show LaTeX Output"),
+        # Binding("d", "show_edit_default_rules", "Edit Default Rules"),
+        # Binding("e", "show_edit_rules", "Edit Rules"),
         Binding("S", "start_selection_mode", "Start Swap Mode"),
         Binding("s", "data_selection", "Select Row/Column", show=False),
         Binding("click", "handle_click", "Toggle Order"),
@@ -94,13 +123,16 @@ class DataTableScreen(Screen):
 
     def compose(self) -> ComposeResult:
         self.app: P2LApp
-        self.data_table = DataTable()
-        self.status_bar = Static("Status: Ready")
-        self.footer = Footer()
+        self.data_table = DataTable(id="data_table")
+        self.status_bar = Static("Status: Ready", id="status")
+        self.footer = Footer(id="footer")
 
-        yield Container(self.data_table, id="main")
-        yield Container(self.status_bar, id="status")
-        yield Container(self.footer, id="footer")
+        yield Container(
+            self.data_table,
+            id="main"
+        )
+        yield self.status_bar
+        yield self.footer
 
     def draw_table(self) -> None:
         # copy the table to avoid modifying the original table
@@ -251,7 +283,7 @@ class DataTableScreen(Screen):
             )
             await self.disable_selection_mode()
 
-class InputScreen(Screen):
+class InputScreen(ModalScreen):
     """Screen for table input."""
 
     BINDINGS = [
@@ -263,12 +295,18 @@ class InputScreen(Screen):
         self.app: P2LApp
 
     def compose(self) -> ComposeResult:
-        self.input_area = TextArea()
-        self.status_bar = Static("Status: Ready")
-        self.footer = Footer()
-        yield Container(self.input_area, id="main")
-        yield Container(self.status_bar, id="status")
-        yield Container(self.footer, id="footer")
+        self.info_text = Static("Enter the table data in LaTeX format.", id="info")
+        self.input_area = TextArea(id="input")
+        self.status_bar = Static("Status: Ready", id="status")
+        self.footer = Footer(id="footer")
+
+        yield Grid(
+            self.info_text,
+            self.input_area,
+            id="grid_input"
+        )
+        yield self.status_bar
+        yield self.footer
 
     async def on_mount(self) -> None:
         """Focus on the input area when the screen is mounted."""
@@ -284,26 +322,33 @@ class InputScreen(Screen):
         self.dismiss(convert2dataframe(self.input_area.text))
 
 
-class HighlightingInputScreen(Screen):
+class RulesInputScreen(ModalScreen):
     """Screen for default or column highlighting input."""
 
     BINDINGS = [
         Binding("ctrl+s", "submit", "Submit"),
     ]
 
-    def __init__(self, text: str):
+    def __init__(self, rules: str, info_text: str = "Enter the highlighting rules in JSON format."):
         super().__init__()
-        self.text = text
+        self.rules = rules
+        self.info_text = info_text
 
     def compose(self) -> ComposeResult:
         self.app: P2LApp
-        self.highlight_input_area = TextArea()
-        self.highlight_input_area.text = self.text
-        self.status_bar = Static("Status: Ready")
-        self.footer = Footer()
-        yield Container(self.highlight_input_area, id="main")
-        yield Container(self.status_bar, id="status")
-        yield Container(self.footer, id="footer")
+        self.info_text = Static(self.info_text, id="info")
+        self.highlight_input_area = TextArea(id="highlight_input")
+        self.highlight_input_area.text = self.rules
+        self.status_bar = Static("Status: Ready", id="status")
+        self.footer = Footer(id="footer")
+
+        yield Grid(
+            self.info_text,
+            self.highlight_input_area,
+            id="grid_input"
+        )
+        yield self.status_bar
+        yield self.footer
 
     async def on_mount(self) -> None:
         """Focus on the highlighting input area when the screen is mounted."""
@@ -347,7 +392,10 @@ class HighlightingInputScreen(Screen):
                     f"Invalid value '{value}' for key '{key}'. Expected '{rule_type}' . It has been removed."
                 )
                 pop_keys.append(key)
-        rules.pop(key)
+
+
+        for key in pop_keys:
+            rules.pop(key)
 
         return rules
         
@@ -363,9 +411,6 @@ class P2LApp(App):
         Binding("L", "show_latex_output", "Show LaTeX Output"),
         Binding("d", "show_edit_default_rules", "Edit Default Rules"),
         Binding("e", "show_edit_rules", "Edit Rules"),
-        Binding("S", "start_selection_mode", "Start Swap Mode"),
-        Binding("s", "data_selection", "Select Row/Column", show=False),
-        Binding("click", "handle_click", "Toggle Order"),
     ]
 
     def __init__(self):
@@ -386,6 +431,7 @@ class P2LApp(App):
         # Register Screens
         self.data_table_screen = DataTableScreen()
         self.push_screen(self.data_table_screen)
+        self.push_screen(WelcomeScreen())
 
     async def reset_screen(self) -> None:
         """Reset the screen to the DataTable."""
@@ -426,6 +472,7 @@ class P2LApp(App):
 
     async def action_show_edit_default_rules(self) -> None:
         """Show the input screen for editing the default highlighting rules."""
+        info_text = "Enter the default highlighting rules in JSON format."
 
         def update_highlighting(highlighting: dict[str, Any] | None) -> None:
             if highlighting is not None:
@@ -438,7 +485,7 @@ class P2LApp(App):
                 self.data_table_screen.status_bar.update("Invalid highlighting rules.")
 
         self.push_screen(
-            HighlightingInputScreen(json.dumps(self.default_rules, indent=4)),
+            RulesInputScreen(json.dumps(self.default_rules, indent=4), info_text),
             update_highlighting,
         )
         self.draw_table()
@@ -461,6 +508,8 @@ class P2LApp(App):
         except (IndexError, AttributeError):
             self.data_table_screen.status_bar.update("No column selected.")
             return
+        
+        info_text = f"Enter the highlighting rules for column '{column_name}' in JSON format."
 
         def update_highlighting(highlighting: dict[str, Any] | None) -> None:
             if highlighting is not None:
@@ -476,7 +525,7 @@ class P2LApp(App):
         column_rules = self.col_rules_overrides.get(column_name, {})
 
         self.push_screen(
-            HighlightingInputScreen(json.dumps(column_rules, indent=4)),
+            RulesInputScreen(json.dumps(column_rules, indent=4), info_text),
             update_highlighting,
         )
         self.draw_table()
@@ -491,6 +540,8 @@ class P2LApp(App):
         except (IndexError, AttributeError):
             self.data_table_screen.status_bar.update("No row selected.")
             return
+        
+        info_text = f"Enter the highlighting rules for row '{row_name}' in JSON format."
 
         def update_highlighting(highlighting: dict[str, Any] | None) -> None:
             if highlighting is not None:
@@ -506,7 +557,7 @@ class P2LApp(App):
         row_rules = self.row_rules_overrides.get(row_name, {})
 
         self.push_screen(
-            HighlightingInputScreen(json.dumps(row_rules, indent=4)),
+            RulesInputScreen(json.dumps(row_rules, indent=4), info_text),
             update_highlighting,
         )
         self.draw_table()
