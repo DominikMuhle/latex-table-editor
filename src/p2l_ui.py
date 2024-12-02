@@ -1,8 +1,7 @@
 # Python
 
 from copy import deepcopy
-from enum import Enum
-from typing import Any, Callable
+from typing import Any
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.widgets import TextArea, DataTable, Footer, Static
@@ -13,8 +12,46 @@ import pandas as pd
 import json
 
 from interactive import convert2dataframe
-from utils import Axis, Order
+from utils import AVAILABLE_RULES, RULES, RULE_TYPES, Axis, Order, filter_rule_keys, is_instance_of_union
 from highlighting import DEFAULT_RULES, table_highlighting_by_name
+
+
+class LATeXOutputScreen(Screen):
+    """Screen for LaTeX output."""
+    BINDINGS = [
+        Binding("r", "dismiss", "Return to DataTable"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        self.app: P2LApp
+        self.latex_output_area = TextArea(read_only=True)
+        self.status_bar = Static("Status: Ready")
+        self.footer = Footer()
+        yield Container(self.latex_output_area, id="main")
+        yield Container(self.status_bar, id="status")
+        yield Container(self.footer, id="footer")
+
+    async def on_mount(self) -> None:
+        """Focus on the LaTeX output area when the screen is mounted."""
+        self.latex_output_area.focus()
+        # copy the table to avoid modifying the original table
+        manipulated_table = deepcopy(self.app.table)
+        match self.app.mode:
+            case Axis.ROW:
+                rule_overrides = self.app.row_rules_overrides
+            case Axis.COLUMN:
+                rule_overrides = self.app.col_rules_overrides
+        manipulated_table = table_highlighting_by_name(
+            manipulated_table,
+            self.app.mode,
+            rule_overrides,
+            self.app.default_rules,
+        )
+        self.latex_output_area.text = manipulated_table.to_latex()
+
+    async def action_dismiss(self) -> None:
+        """Dismiss the LaTeX output screen."""
+        await self.dismiss()
 
 
 class DataTableScreen(Screen):
@@ -22,6 +59,7 @@ class DataTableScreen(Screen):
     BINDINGS = [
         Binding("N", "show_input", "New Input"),
         Binding("T", "toggle_mode", "Toggle Row/Column Mode"),
+        Binding("L", "show_latex_output", "Show LaTeX Output"),
         Binding("d", "show_edit_default_rules", "Edit Default Rules"),
         Binding("e", "show_edit_rules", "Edit Rules"),
         Binding("S", "start_selection_mode", "Start Swap Mode"),
@@ -254,6 +292,7 @@ class HighlightingInputScreen(Screen):
         """Handle submission of highlighting rules."""
         try:
             new_rules = json.loads(self.highlight_input_area.text)
+            new_rules = self.check_input_highlighting(new_rules)
             if "order" in new_rules:
                 new_rules["order"] = Order(new_rules["order"])
 
@@ -261,6 +300,31 @@ class HighlightingInputScreen(Screen):
         except json.JSONDecodeError:
             self.status_bar.update("Invalid JSON input. Please try again.")
 
+    def check_input_highlighting(self, rules: dict[str, Any]) -> RULES:
+        """Check the input highlighting rules for validity."""
+
+        # Filter out the keys that are not available in the rules dictionary
+        rules, pop_keys = filter_rule_keys(rules)
+        if pop_keys:
+            self.status_bar.update(
+                f"Invalid keys {pop_keys}. They have been removed."
+            )
+
+        # Filter out the keys that don't have matching types
+        for key, value in rules.items():
+            if key not in AVAILABLE_RULES:
+                continue
+            rule_type = AVAILABLE_RULES[key]
+
+            if not is_instance_of_union(value, rule_type):
+                self.status_bar.update(
+                    f"Invalid value '{value}' for key '{key}'. Expected '{rule_type}' . It has been removed."
+                )
+                rules.pop(key)
+
+        
+        return rules
+        
 
 class P2LApp(App):
     """Main application class."""
@@ -283,6 +347,7 @@ class P2LApp(App):
     BINDINGS = [
         Binding("N", "show_input", "New Input"),
         Binding("T", "toggle_mode", "Toggle Row/Column Mode"),
+        Binding("L", "show_latex_output", "Show LaTeX Output"),
         Binding("d", "show_edit_default_rules", "Edit Default Rules"),
         Binding("e", "show_edit_rules", "Edit Rules"),
         Binding("S", "start_selection_mode", "Start Swap Mode"),
@@ -339,6 +404,12 @@ class P2LApp(App):
         self.mode = Axis.ROW if self.mode == Axis.COLUMN else Axis.COLUMN
         self.draw_table()
         self.data_table_screen.status_bar.update(f"Mode toggled to {self.mode.name}.")
+
+    async def action_show_latex_output(self) -> None:
+        """Show the LaTeX output screen."""
+
+        self.push_screen(LATeXOutputScreen())
+        self.draw_table()
 
     async def action_show_edit_default_rules(self) -> None:
         """Show the input screen for editing the default highlighting rules."""
