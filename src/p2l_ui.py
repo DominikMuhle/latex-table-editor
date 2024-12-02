@@ -13,7 +13,7 @@ from textual.coordinate import Coordinate
 import pandas as pd
 import json
 
-from interactive import convert2dataframe
+from interactive import latex_table_to_dataframe
 from utils import AVAILABLE_RULES, RULES, Axis, Order, filter_rule_keys, is_instance_of_union
 from highlighting import DEFAULT_RULES, table_highlighting_by_name
 
@@ -340,7 +340,7 @@ class InputScreen(ModalScreen):
     async def handle_submit(self) -> None:
         """Handle submission of input data."""
         # app = self.app
-        self.dismiss(convert2dataframe(self.input_area.text))
+        self.dismiss(latex_table_to_dataframe(self.input_area.text))
 
 
 class RulesInputScreen(ModalScreen):

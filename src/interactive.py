@@ -16,84 +16,81 @@ def read_input():
         pass
     return "\n".join(lines)
 
-def convert2dataframe(input_string: str):
-    # strip away the part of the line after a comment symbol '%'
-    input_string = re.sub(r"%.*", "", input_string)
-    # remove all the empty lines
-    input_string = re.sub(r"\n\s*\n", "\n", input_string)
-    # remove the leading and trailing whitespaces
-    input_string = input_string.strip()
-    # remove the \\ at the end of the line
-    input_string = re.sub(r"\\\\", "", input_string)
 
-    # split the table into rows
-    rows = input_string.split("\n")
-    # split each row into columns
-    rows = [row.split("&") for row in rows]
-    # remove the leading and trailing whitespaces from each column
-    rows = [[column.strip() for column in row] for row in rows]
-    indices = [row[0] for row in rows]
-    data = [row[1:] for row in rows]
+def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
+    """
+    Convert LaTeX table source code into a pandas DataFrame.
 
-    columns = [f"Column {idx}" for idx in range(len(data[0]))]
+    Parameters:
+    - latex_str (str): LaTeX table as a string.
 
-    # Convert it into a DataFrame
-    df = pd.DataFrame(data, index=indices, columns=columns)
+    Returns:
+    - pd.DataFrame: DataFrame representation of the LaTeX table.
+    """
+    # Split the LaTeX string into individual lines
+    lines = latex_str.strip().splitlines()
 
-    # Convert into numbers if possible
-    for column in df.columns:
-        df[column] = pd.to_numeric(df[column], errors="coerce").fillna(df[column])
+    rows = []
+    for line in lines:
+        line = line.strip()
+
+        # Skip empty lines
+        if not line:
+            continue
+
+        # Skip LaTeX table environment lines
+        if re.match(r'\\begin\{tabular\}', line) or re.match(r'\\end\{tabular\}', line):
+            continue
+
+        # Skip table rules like \toprule, \midrule, \bottomrule
+        if re.match(r'\\(top|mid|bottom)rule', line):
+            continue
+
+        # Remove comments starting with %
+        line = re.sub(r'%.*', '', line).strip()
+        if not line:
+            continue
+
+        # Remove trailing '\\'
+        line = re.sub(r'\\\\', '', line).strip()
+        if not line:
+            continue
+
+        # Split the line by '&' and strip whitespace from each cell
+        cells = [cell.strip() for cell in line.split('&')]
+        rows.append(cells)
+
+    if not rows:
+        return pd.DataFrame()
+
+    # Assume the first row is the header
+    header = rows[0]
+    data_rows = rows[1:]
+
+    if not data_rows:
+        # If there's no data, return empty DataFrame with headers
+        return pd.DataFrame(columns=header[1:], index=[])
+
+    # Use the first column as the index
+    index = [row[0] for row in data_rows]
+    data = [row[1:] for row in data_rows]
+
+    # Create DataFrame
+    df = pd.DataFrame(data, index=index, columns=header[1:])
+
+    # Function to extract numerical value from a cell
+    def extract_number(cell):
+        # Remove LaTeX commands like \underline{}
+        cell = re.sub(r'\\[a-zA-Z]+\{([^}]+)\}', r'\1', cell)
+        cell = cell.strip()
+        # Check for non-numeric entries like '-'
+        if cell == '-':
+            return cell
+        # Extract numerical value
+        match = re.search(r'-?\d+\.?\d*', cell)
+        return float(match.group()) if match else cell
+
+    # Apply the extraction function to all cells
+    df = df.applymap(extract_number)
 
     return df
-
-def interacitve_highlighting():
-    lines = read_input()
-    table = convert2dataframe(lines)
-    # Ask the user for the axis
-    print("Please select the axis for highlighting:")
-    print("0: Row")
-    print("1: Column")
-    axis = Axis(int(input("Enter the axis: ")))
-
-    # Ask the user for the highlighting patterns as a comma-separated list of strings
-    # Provide a default value as an example
-    print("Please enter the highlighting patterns as a comma-separated list of strings:")
-    print("Example: \\bfseries{%s},\\underline{%s}")
-    print("If you want to use the default highlighting pattern, just press Enter")
-    highlighting = (input("Enter the highlighting patterns: ") or "\\bfseries{%s},\\underline{%s}").split(",")
-
-    # Ask the user for the default formatting pattern
-    print("Please enter the default formatting pattern:")
-    print("Example: %s")
-    default = input("Enter the default formatting pattern: ") or "%s"
-
-    if axis == Axis.ROW:
-        table = table.T
-    
-    # for each column ask the user for the order and precision
-    orders = []
-    precisions = []
-    for column in table.columns:
-        print(f"Please select the order for column {column}:")
-        print("-1: Minimum")
-        print("0: Neural")
-        print("1: Maximum")
-        orders.append(Order(int(input("Enter the order: "))))
-        print(f"Please enter the precision for column {column}:")
-        print("Example: %.3f")
-        print("If you want to use the default precision, just press Enter")
-        precisions.append(input("Enter the precision: ") or "%.3f")
-
-
-    rows, columns = table.shape
-    ignore_idx = []
-    remaining_indices = [idx for idx in range(rows) if idx not in ignore_idx]
-    
-    for idx, (column, order, precision) in enumerate(zip(table.columns, orders, precisions)):
-        table[column] = column_highlighting(table[column], remaining_indices, order, highlighting, default, precision)
-        
-    if axis == Axis.ROW:
-        table = table.T
-
-    return table
-
