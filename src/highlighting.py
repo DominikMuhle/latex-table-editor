@@ -29,18 +29,24 @@ def highlight_extrema(data: str | float | int, extrema: list[float | int], highl
     return default % data_
 
 
-def column_highlighting(df_column: pd.DataFrame, indices: list[int], order: Order, highlighting: list[str], default: str, precision: str) -> pd.DataFrame:
+def column_highlighting(df_column: pd.DataFrame, indices: list[str], order: Order, highlighting: list[str], default: str, precision: str) -> pd.DataFrame:
     num_highlights = len(highlighting)
     df_column_numeric = pd.to_numeric(df_column, errors="coerce")
     match order:
         case Order.MINIMUM:
-            extrema = df_column_numeric.iloc[indices].nsmallest(num_highlights)
+            extrema = df_column_numeric[indices].nsmallest(num_highlights)
         case Order.NEUTRAL:
             extrema = []
         case Order.MAXIMUM:
-            extrema = df_column_numeric.iloc[indices].nlargest(num_highlights)
+            extrema = df_column_numeric[indices].nlargest(num_highlights)
 
-    df_column = df_column.apply(lambda data: highlight_extrema(data, extrema, highlighting, default, precision)).astype(str)
+    # apply the highlighting to the extrema
+    df_column[indices] = df_column[indices].apply(lambda data: highlight_extrema(data, extrema, highlighting, default, precision)).astype(str)
+    # apply the default formatting to the rest of the data
+    all_indices = df_column.index
+    ignore_indices = [idx for idx in all_indices if idx not in indices]
+    df_column[ignore_indices] = df_column[ignore_indices].apply(lambda data: highlight_extrema(data, extrema, [default], default, precision)).astype(str)
+
     return df_column
 
 def table_highlighting(
@@ -81,7 +87,7 @@ def table_highlighting(
     return dataframe
 
 
-def table_highlighting_by_name(dataframe: pd.DataFrame, axis: Axis, column_override_rules: dict[str, dict[str, Any]], default_rules: dict[str, Any] = {}, ignore_idx: list[int] | None = None) -> pd.DataFrame:
+def table_highlighting_by_name(dataframe: pd.DataFrame, axis: Axis, column_override_rules: dict[str, dict[str, Any]], default_rules: dict[str, Any] = {}, ignore: list[str] | None = None) -> pd.DataFrame:
     if axis == Axis.ROW:
         # transpose the dataframe to make the row operations column operations
         dataframe = dataframe.T
@@ -96,9 +102,12 @@ def table_highlighting_by_name(dataframe: pd.DataFrame, axis: Axis, column_overr
 
 
     rows, columns = dataframe.shape
-    if ignore_idx is None:
-        ignore_idx = []
-    remaining_indices = [idx for idx in range(rows) if idx not in ignore_idx]
+    if ignore is None:
+        ignore = []
+    for key in ignore:
+        if key not in dataframe.index:
+            warnings.warn(f"Key {key} not found in the dataframe index")
+    remaining_indices = [idx for idx in dataframe.index if idx not in ignore]
 
     for name, rules in column_override_rules.items():
         order = rules.get("order", default_rules["order"])

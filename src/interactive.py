@@ -30,11 +30,15 @@ def convert2dataframe(input_string: str):
     rows = input_string.split("\n")
     # split each row into columns
     rows = [row.split("&") for row in rows]
+    # remove the leading and trailing whitespaces from each column
+    rows = [[column.strip() for column in row] for row in rows]
     indices = [row[0] for row in rows]
     data = [row[1:] for row in rows]
 
+    columns = [f"Column {idx}" for idx in range(len(data[0]))]
+
     # Convert it into a DataFrame
-    df = pd.DataFrame(data, index=indices)
+    df = pd.DataFrame(data, index=indices, columns=columns)
 
     # Convert into numbers if possible
     for column in df.columns:

@@ -9,6 +9,7 @@ from textual.widgets import TextArea, DataTable, Footer, Static, Input
 from textual.binding import Binding
 from textual.events import Click
 from textual.screen import Screen, ModalScreen
+from textual.coordinate import Coordinate
 import pandas as pd
 import json
 
@@ -140,38 +141,44 @@ class DataTableScreen(Screen):
         match self.app.mode:
             case Axis.ROW:
                 rule_overrides = self.app.row_rules_overrides
+                ignore = self.app.skipped_cols
             case Axis.COLUMN:
                 rule_overrides = self.app.col_rules_overrides
+                ignore = self.app.skipped_rows
         self.app.displayed_table = table_highlighting_by_name(
             self.app.displayed_table,
             self.app.mode,
             rule_overrides,
             self.app.default_rules,
+            ignore
         )
 
         self.data_table.clear(columns=True)
         # add the columns with the index column
-        column_names = []
+        column_keys = []
         for col in self.app.displayed_table.columns:
-            if self.app.mode == Axis.ROW:
-                column_names.append(str(col))
-                continue
+            key = str(col)
+            name = str(col)
 
-            # get the ordering of the columns
-            order = self.app.col_rules_overrides.get(col, {}).get(
-                "order", self.app.default_rules["order"]
-            )
-            match order:
-                case Order.MINIMUM:
-                    column_names.append(f"{str(col)} (v)")
-                case Order.NEUTRAL:
-                    column_names.append(f"{str(col)} (-)")
-                case Order.MAXIMUM:
-                    column_names.append(f"{str(col)} (^)")
+            if self.app.mode == Axis.COLUMN:
+                # get the ordering of the columns
+                order = self.app.col_rules_overrides.get(col, {}).get(
+                    "order", self.app.default_rules["order"]
+                )
+                match order:
+                    case Order.MINIMUM:
+                        name = f"{name} (v)"
+                    case Order.NEUTRAL:
+                        name = f"{name} (-)"
+                    case Order.MAXIMUM:
+                        name = f"{name} (^)"
 
-        self.data_table.add_columns(*column_names)
+            self.data_table.add_column(label=name, key=key)
+            column_keys.append(key)
 
+        row_keys = []
         for _, row in self.app.displayed_table.iterrows():
+            key = str(row.name)
             name = str(row.name)
             if self.app.mode == Axis.ROW:
                 order = self.app.row_rules_overrides.get(name, {}).get(
@@ -186,8 +193,22 @@ class DataTableScreen(Screen):
                         name = f"{name} (^)"
 
             self.data_table.add_row(
-                *[str(value) for value in row], key=str(row.name), label=name
+                *[str(value) for value in row], key=key, label=name
             )
+            row_keys.append(key)
+
+        match self.app.mode:
+            case Axis.ROW:
+                for col_key in self.app.skipped_cols:
+                    for row_key in row_keys:
+                        cell_content = self.data_table.get_cell(row_key=row_key, column_key=col_key)
+                        self.data_table.update_cell(row_key=row_key, column_key=col_key, value=f"[grey54]{cell_content}[/grey54]", update_width=True)
+            case Axis.COLUMN:
+                for row_key in self.app.skipped_rows:
+                    for col_key in column_keys:
+                        cell_content = self.data_table.get_cell(row_key=row_key, column_key=col_key)
+                        self.data_table.update_cell(row_key=row_key, column_key=col_key, value=f"[grey54]{cell_content}[/grey54]", update_width=True)
+
         self.refresh()
 
     async def on_mount(self) -> None:
@@ -410,6 +431,7 @@ class P2LApp(App):
         Binding("T", "toggle_mode", "Toggle Row/Column Mode"),
         Binding("L", "show_latex_output", "Show LaTeX Output"),
         Binding("d", "show_edit_default_rules", "Edit Default Rules"),
+        Binding("x", "toggle_cell", "skip/include row/column"),
         Binding("e", "show_edit_rules", "Edit Rules"),
     ]
 
@@ -421,6 +443,8 @@ class P2LApp(App):
         self.default_rules = deepcopy(DEFAULT_RULES)
         self.col_rules_overrides = {}
         self.row_rules_overrides = {}
+        self.skipped_cols = []
+        self.skipped_rows = []
         self.current_active_text_area = None
         self.selection_mode = False
         self.selected_columns = []
@@ -457,12 +481,6 @@ class P2LApp(App):
 
         self.push_screen(InputScreen(), update_table)
         self.draw_table()
-
-    async def action_toggle_mode(self) -> None:
-        """Toggle the row/column mode."""
-        self.mode = Axis.ROW if self.mode == Axis.COLUMN else Axis.COLUMN
-        self.draw_table()
-        self.data_table_screen.status_bar.update(f"Mode toggled to {self.mode.name}.")
 
     async def action_show_latex_output(self) -> None:
         """Show the LaTeX output screen."""
@@ -560,6 +578,53 @@ class P2LApp(App):
             RulesInputScreen(json.dumps(row_rules, indent=4), info_text),
             update_highlighting,
         )
+        self.draw_table()
+
+    async def action_toggle_mode(self) -> None:
+        """Toggle the row/column mode."""
+        self.mode = Axis.ROW if self.mode == Axis.COLUMN else Axis.COLUMN
+        self.draw_table()
+        self.data_table_screen.status_bar.update(f"Mode toggled to {self.mode.name}.")
+
+    async def action_toggle_cell(self) -> None:
+        """Toggle the row/column mode."""
+        if self.mode == Axis.ROW:
+            self.toggle_column()
+        elif self.mode == Axis.COLUMN:
+            self.toggle_row()
+
+    def toggle_column(self) -> None:
+        try:
+            column_name = self.displayed_table.columns[
+                self.data_table_screen.data_table.cursor_column
+            ]
+        except (IndexError, AttributeError):
+            self.data_table_screen.status_bar.update("No column selected.")
+            return
+        
+        if column_name in self.skipped_cols:
+            self.skipped_cols.remove(column_name)
+            self.data_table_screen.status_bar.update(f"Included column '{column_name}'.")
+        else:
+            self.skipped_cols.append(column_name)
+            self.data_table_screen.status_bar.update(f"Skipped column '{column_name}'.")
+        self.draw_table()
+
+    def toggle_row(self) -> None:
+        try:
+            row_name = self.displayed_table.index[
+                self.data_table_screen.data_table.cursor_row
+            ]
+        except (IndexError, AttributeError):
+            self.data_table_screen.status_bar.update("No row selected.")
+            return
+        
+        if row_name in self.skipped_rows:
+            self.skipped_rows.remove(row_name)
+            self.data_table_screen.status_bar.update(f"Included row '{row_name}'.")
+        else:
+            self.skipped_rows.append(row_name)
+            self.data_table_screen.status_bar.update(f"Skipped row '{row_name}'.")
         self.draw_table()
 
     def swap_columns(self, col1: str, col2: str) -> None:
