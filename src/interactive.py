@@ -30,7 +30,11 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
     # Split the LaTeX string into individual lines
     lines = latex_str.strip().splitlines()
 
-    rows = []
+    # Initialize variables to store headers and data rows
+    header_rows = []
+    data_rows = []
+    in_header = True
+
     for line in lines:
         line = line.strip()
 
@@ -38,12 +42,15 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
         if not line:
             continue
 
-        # Skip LaTeX table environment lines
+        # Skip LaTeX table environment lines and \toprule, \bottomrule
         if re.match(r'\\begin\{tabular\}', line) or re.match(r'\\end\{tabular\}', line):
             continue
+        if re.match(r'\\(top|bottom)rule', line):
+            continue
 
-        # Skip table rules like \toprule, \midrule, \bottomrule
-        if re.match(r'\\(top|mid|bottom)rule', line):
+        # Detect \midrule to signal the end of headers
+        if re.match(r'\\midrule', line):
+            in_header = False
             continue
 
         # Remove comments starting with %
@@ -58,25 +65,68 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
 
         # Split the line by '&' and strip whitespace from each cell
         cells = [cell.strip() for cell in line.split('&')]
-        rows.append(cells)
 
-    if not rows:
-        return pd.DataFrame()
+        if in_header:
+            header_cells = []
+            for cell in cells:
+                # Handle \multicolumn in header cells
+                multicol_match = re.match(r'\\multicolumn\{(\d+)\}\{[^\}]*\}\{(.+)\}', cell)
+                if multicol_match:
+                    span = int(multicol_match.group(1))
+                    content = multicol_match.group(2).strip()
+                    header_cells.extend([content] * span)
+                else:
+                    header_cells.append(cell)
+            header_rows.append(header_cells)
+        else:
+            data_rows.append(cells)
 
-    # Assume the first row is the header
-    header = rows[0]
-    data_rows = rows[1:]
-
-    if not data_rows:
-        # If there's no data, return empty DataFrame with headers
-        return pd.DataFrame(columns=header[1:], index=[])
-
-    # Use the first column as the index
+    # Extract columns, rows, and headers
+    columns = [header_row[1:] for header_row in header_rows]
     index = [row[0] for row in data_rows]
     data = [row[1:] for row in data_rows]
 
     # Create DataFrame
-    df = pd.DataFrame(data, index=index, columns=header[1:])
+    df = pd.DataFrame(data, index=index, columns=columns)
+
+    # # Create DataFrame with combined headers
+    # df = pd.DataFrame(data_rows, columns=combined_header)
+
+    # if not data_rows:
+    #     return pd.DataFrame()
+
+    # # Adjust data rows to match the expanded header
+    # adjusted_data_rows = []
+    # for row in data_rows:
+    #     adjusted_row = []
+    #     for cell in row:
+    #         # Expand cells with \multicolumn in data rows if necessary
+    #         multicol_match = re.match(r'\\multicolumn\{(\d+)\}\{[^\}]*\}\{(.+)\}', cell)
+    #         if multicol_match:
+    #             span = int(multicol_match.group(1))
+    #             content = multicol_match.group(2).strip()
+    #             adjusted_row.extend([content] * span)
+    #         else:
+    #             adjusted_row.append(cell)
+    #     adjusted_data_rows.append(adjusted_row)
+
+    # # Create DataFrame with expanded headers
+    # df = pd.DataFrame(adjusted_data_rows, columns=header_row)
+
+    # # Assume the first row is the header
+    # header = rows[0]
+    # data_rows = rows[1:]
+
+    # if not data_rows:
+    #     # If there's no data, return empty DataFrame with headers
+    #     return pd.DataFrame(columns=header[1:], index=[])
+
+    # # Use the first column as the index
+    # index = [row[0] for row in data_rows]
+    # data = [row[1:] for row in data_rows]
+
+    # # Create DataFrame
+    # df = pd.DataFrame(data, index=index, columns=header[1:])
 
     # Function to extract numerical value from a cell
     def extract_number(cell):

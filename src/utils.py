@@ -17,12 +17,22 @@ AVAILABLE_RULES = {
     "order": Order | str,
     "highlight": list[str],
     "default": str,
-    "precision": int,
+    "precision": str,
 }
 RULE_TYPES = Order | str | list[str]
 RULES = dict[str, RULE_TYPES]
 
+def is_instance_of(var, var_type):
+    """Check if a variable is an instance of a type"""
+   
+    # check if var_type is a union
+    if len(get_args(var_type)) == 0:
+        return isinstance(var, var_type)
+    else:
+        return is_instance_of_union(var, var_type)
+
 def is_instance_of_union(var, union_type):
+    """Check if a variable is an instance of a union type"""
     for typ in get_args(union_type):
         origin = get_origin(typ)
         if origin is None:
