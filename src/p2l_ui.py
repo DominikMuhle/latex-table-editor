@@ -10,7 +10,7 @@ from textual.screen import Screen, ModalScreen
 import pandas as pd
 import json
 
-from conversion import latex_table_to_dataframe
+from conversion import latex_table_to_dataframe, latex_table_to_dataframe2
 from table import Table
 from utils import AVAILABLE_RULES, RULES, Axis, Order, filter_rule_keys, is_instance_of
 from highlighting import DEFAULT_RULES
@@ -140,9 +140,10 @@ class DataTableScreen(Screen):
             column_keys.append(key)
 
         row_keys = []
-        for _, row in self.app.table.display_table.iterrows():
-            key = str(row.name)
-            name = str(row.name)
+        for row in self.app.table.display_table.index:
+            row_data = self.app.table.display_table.loc[row]
+            key = self.app.table.multi_index_to_str(row)
+            name = self.app.table.multi_index_to_str(row)
             if self.app.table.mode == Axis.ROW:
                 order = self.app.table.overrides[Axis.ROW].get(name, {}).get(
                     "order", self.app.table.default_rules["order"]
@@ -156,7 +157,7 @@ class DataTableScreen(Screen):
                         name = f"{name} (^)"
 
             self.data_table.add_row(
-                *[str(value) for value in row], key=key, label=name
+                *[str(value) for value in row_data], key=key, label=name
             )
             row_keys.append(key)
 
@@ -216,7 +217,7 @@ class InputScreen(ModalScreen):
     async def handle_submit(self) -> None:
         """Handle submission of input data."""
         # app = self.app
-        self.dismiss(latex_table_to_dataframe(self.input_area.text))
+        self.dismiss(latex_table_to_dataframe2(self.input_area.text))
 
 
 class RulesInputScreen(ModalScreen):

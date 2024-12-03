@@ -2,6 +2,7 @@ import re
 
 import pandas as pd
 
+
 def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
     """
     Convert LaTeX table source code into a pandas DataFrame.
@@ -15,11 +16,9 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
     # Split the LaTeX string into individual lines
     lines = latex_str.strip().splitlines()
 
-    # Initialize variables to store headers and data rows
-    header_rows = []
-    data_rows = []
-    in_header = True
 
+    data_lines = []
+    multirow_counters = {}
     for line in lines:
         line = line.strip()
 
@@ -30,12 +29,7 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
         # Skip LaTeX table environment lines and \toprule, \bottomrule
         if re.match(r'\\begin\{tabular\}', line) or re.match(r'\\end\{tabular\}', line):
             continue
-        if re.match(r'\\(top|bottom)rule', line):
-            continue
-
-        # Detect \midrule to signal the end of headers
-        if re.match(r'\\midrule', line):
-            in_header = False
+        if re.match(r'\\(top|bottom|mid)rule', line):
             continue
 
         # Remove comments starting with %
@@ -51,42 +45,73 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
         # Split the line by '&' and strip whitespace from each cell
         cells = [cell.strip() for cell in line.split('&')]
 
-        if in_header:
-            header_cells = []
-            for cell in cells:
-                # Handle \multicolumn in header cells
-                multicol_match = re.match(r'\\multicolumn\{(\d+)\}\{[^\}]*\}\{(.+)\}', cell)
-                if multicol_match:
-                    span = int(multicol_match.group(1))
-                    content = multicol_match.group(2).strip()
-                    header_cells.extend([content] * span)
-                else:
-                    header_cells.append(cell)
-            header_rows.append(header_cells)
-        else:
-            data_rows.append(cells)
+        # account for \multicolumn
+        final_cells = []
+        for cell in cells:
+            multicol_match = re.match(r'\\multicolumn\{(\d+)\}\{[^\}]*\}\{(.+)\}', cell)
+            if multicol_match:
+                span = int(multicol_match.group(1))
+                content = multicol_match.group(2).strip()
+                final_cells.extend([content] * span)
+            else:
+                final_cells.append(cell)
 
-    # Extract columns, rows, and headers
-    columns = [header_row[1:] for header_row in header_rows]
-    index = [row[0] for row in data_rows]
-    data = [row[1:] for row in data_rows]
+        # add multirow from previous line
+        for col, (count, content) in multirow_counters.items():
+            if count > 0:
+                final_cells[col] = content
+                multirow_counters[col] = (count - 1, content)
+            
+        # pop multirow counters that are 0
+        multirow_counters = {col: (count, content) for col, (count, content) in multirow_counters.items() if count > 0}
+
+        # check for multirow command and add to the counter
+        for idx, cell in enumerate(final_cells):
+            multirow_match = re.match(r'\\multirow\{(\d+)\}\{[^\}]*\}\{(.+)\}', cell)
+            if multirow_match:
+                span = int(multirow_match.group(1))
+                content = multirow_match.group(2).strip()
+                multirow_counters[idx] = (span - 1, content)
+                final_cells[idx] = content
+
+        data_lines.append(final_cells)
 
     # Create DataFrame
-    df = pd.DataFrame(data, index=index, columns=columns)
+    df = pd.DataFrame(data_lines)
 
     # Function to extract numerical value from a cell
     def extract_number(cell):
-        # Remove LaTeX commands like \underline{}
-        cell = re.sub(r'\\[a-zA-Z]+\{([^}]+)\}', r'\1', cell)
-        cell = cell.strip()
-        # Check for non-numeric entries like '-'
-        if cell == '-':
+        if cell == "":
             return cell
-        # Extract numerical value
-        match = re.search(r'-?\d+\.?\d*', cell)
-        return float(match.group()) if match else cell
-
+        # Remove LaTeX commands like \underline{} from around numbers
+        cell_wo_commands = re.sub(r'\\[a-zA-Z]+\{([^}]+)\}', r'\1', cell)
+        cell_wo_commands = cell_wo_commands.strip()
+        # if only a number is left, turn it into a float
+        if re.match(r'-?\d+\.?\d*', cell_wo_commands):
+            return float(cell_wo_commands)
+        return cell
+    
     # Apply the extraction function to all cells
     df = df.applymap(extract_number)
 
-    return df
+    # Figure out which rows are headers and which columns are indices by checking where there are numbers
+    header_indices = []
+    for idx, row in df.iterrows():
+        if any(isinstance(cell, float) for cell in row):
+            break
+        header_indices.append(idx)
+    index_indices = []
+    for idx, col in enumerate(df):
+        column = df[col]
+        if any(isinstance(cell, float) for cell in column):
+            break
+        index_indices.append(idx)
+
+    # extract the headers and indices
+    non_index_columns = [idx for idx in range(len(df.columns)) if idx not in index_indices]
+    non_header_rows = [idx for idx in range(len(df)) if idx not in header_indices]
+    headers = df.iloc[header_indices, non_index_columns]
+    indices = df.iloc[non_header_rows, index_indices]
+    data = df.iloc[non_header_rows, non_index_columns]
+
+    return pd.DataFrame(data.values, index=indices.T.values.tolist(), columns=headers.values.tolist())
