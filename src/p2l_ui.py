@@ -1,5 +1,3 @@
-# Python
-
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -9,14 +7,13 @@ from textual.widgets import TextArea, DataTable, Footer, Static, Input
 from textual.binding import Binding
 from textual.events import Click
 from textual.screen import Screen, ModalScreen
-from textual.coordinate import Coordinate
 import pandas as pd
 import json
 
-from interactive import latex_table_to_dataframe
+from conversion import latex_table_to_dataframe
 from table import Table
-from utils import AVAILABLE_RULES, RULES, Axis, Order, filter_rule_keys, is_instance_of, is_instance_of_union
-from highlighting import DEFAULT_RULES, table_highlighting_by_name
+from utils import AVAILABLE_RULES, RULES, Axis, Order, filter_rule_keys, is_instance_of
+from highlighting import DEFAULT_RULES
 
 WELCOME_TEXT = """Welcome to P2L!\n
 P2L is a tool that allows you to convert LaTeX tables to Pandas DataFrames and vice versa.\n
@@ -71,21 +68,10 @@ class LATeXOutputScreen(ModalScreen):
     async def on_mount(self) -> None:
         """Focus on the LaTeX output area when the screen is mounted."""
         self.latex_output_area.focus()
-        # copy the table to avoid modifying the original table
+
         self.app.table.highlight_table()
-        # manipulated_table = deepcopy(self.app.table)
-        # match self.app.mode:
-        #     case Axis.ROW:
-        #         rule_overrides = self.app.row_rules_overrides
-        #     case Axis.COLUMN:
-        #         rule_overrides = self.app.col_rules_overrides
-        # manipulated_table = table_highlighting_by_name(
-        #     manipulated_table,
-        #     self.app.mode,
-        #     rule_overrides,
-        #     self.app.default_rules,
-        # )
-        self.latex_output_area.text = self.app.table.display_table.to_latex()#
+
+        self.latex_output_area.text = self.app.table.display_table.to_latex()
         # focus on the input area
         self.input.focus()
 
@@ -113,13 +99,6 @@ class LATeXOutputScreen(ModalScreen):
 
 class DataTableScreen(Screen):
     """Screen displaying the DataTable."""
-    BINDINGS = [
-        # Binding("N", "show_input", "New Input"),
-        # Binding("T", "toggle_mode", "Toggle Row/Column Mode"),
-        # Binding("L", "show_latex_output", "Show LaTeX Output"),
-        # Binding("d", "show_edit_default_rules", "Edit Default Rules"),
-        # Binding("e", "show_edit_rules", "Edit Rules"),
-    ]
 
     def compose(self) -> ComposeResult:
         self.app: P2LApp
@@ -196,83 +175,6 @@ class DataTableScreen(Screen):
         self.refresh()
         
 
-
-    # def draw_table(self) -> None:
-    #     # copy the table to avoid modifying the original table
-    #     self.app.displayed_table = deepcopy(self.app.table)
-    #     match self.app.mode:
-    #         case Axis.ROW:
-    #             rule_overrides = self.app.row_rules_overrides
-    #             ignore = self.app.skipped_cols
-    #         case Axis.COLUMN:
-    #             rule_overrides = self.app.col_rules_overrides
-    #             ignore = self.app.skipped_rows
-    #     self.app.displayed_table = table_highlighting_by_name(
-    #         self.app.displayed_table,
-    #         self.app.mode,
-    #         rule_overrides,
-    #         self.app.default_rules,
-    #         ignore
-    #     )
-
-    #     self.data_table.clear(columns=True)
-    #     # add the columns with the index column
-    #     column_keys = []
-    #     for col in self.app.displayed_table.columns:
-    #         key = str(col)
-    #         name = str(col)
-
-    #         if self.app.mode == Axis.COLUMN:
-    #             # get the ordering of the columns
-    #             order = self.app.col_rules_overrides.get(col, {}).get(
-    #                 "order", self.app.default_rules["order"]
-    #             )
-    #             match order:
-    #                 case Order.MINIMUM:
-    #                     name = f"{name} (v)"
-    #                 case Order.NEUTRAL:
-    #                     name = f"{name} (-)"
-    #                 case Order.MAXIMUM:
-    #                     name = f"{name} (^)"
-
-    #         self.data_table.add_column(label=name, key=key)
-    #         column_keys.append(key)
-
-    #     row_keys = []
-    #     for _, row in self.app.displayed_table.iterrows():
-    #         key = str(row.name)
-    #         name = str(row.name)
-    #         if self.app.mode == Axis.ROW:
-    #             order = self.app.row_rules_overrides.get(name, {}).get(
-    #                 "order", self.app.default_rules["order"]
-    #             )
-    #             match order:
-    #                 case Order.MINIMUM:
-    #                     name = f"{name} (v)"
-    #                 case Order.NEUTRAL:
-    #                     name = f"{name} (-)"
-    #                 case Order.MAXIMUM:
-    #                     name = f"{name} (^)"
-
-    #         self.data_table.add_row(
-    #             *[str(value) for value in row], key=key, label=name
-    #         )
-    #         row_keys.append(key)
-
-    #     match self.app.mode:
-    #         case Axis.ROW:
-    #             for col_key in self.app.skipped_cols:
-    #                 for row_key in row_keys:
-    #                     cell_content = self.data_table.get_cell(row_key=row_key, column_key=col_key)
-    #                     self.data_table.update_cell(row_key=row_key, column_key=col_key, value=f"[grey54]{cell_content}[/grey54]", update_width=True)
-    #         case Axis.COLUMN:
-    #             for row_key in self.app.skipped_rows:
-    #                 for col_key in column_keys:
-    #                     cell_content = self.data_table.get_cell(row_key=row_key, column_key=col_key)
-    #                     self.data_table.update_cell(row_key=row_key, column_key=col_key, value=f"[grey54]{cell_content}[/grey54]", update_width=True)
-
-    #     self.refresh()
-
     async def on_mount(self) -> None:
         """Initialize the DataTable with data."""
         self.data_table.cursor_type = "cell"
@@ -331,7 +233,7 @@ class RulesInputScreen(ModalScreen):
 
     def compose(self) -> ComposeResult:
         self.app: P2LApp
-        self.info_text = Static(self.info_text, id="info")
+        self.info_text = Static(str(self.info_text), id="info")
         self.highlight_input_area = TextArea(id="highlight_input")
         self.highlight_input_area.text = self.rules
         self.status_bar = Static("Status: Ready", id="status")
@@ -415,15 +317,6 @@ class P2LApp(App):
     def __init__(self):
         super().__init__()
         self.table = Table()
-        # self.table = pd.DataFrame()
-        # self.mode = Axis.COLUMN
-        # self.displayed_table = pd.DataFrame()
-        # self.default_rules = deepcopy(DEFAULT_RULES)
-        # self.col_rules_overrides = {}
-        # self.row_rules_overrides = {}
-        # self.skipped_cols = []
-        # self.skipped_rows = []
-        self.current_active_text_area = None
         self.selection_mode = False
         self.selected_columns = []
         self.current_highlighting_target = None  # Tracks which column to highlight
@@ -439,11 +332,7 @@ class P2LApp(App):
         """Reset the screen to the DataTable."""
         await self.switch_screen(self.data_table_screen)
 
-    def reset_formatting_rules(self):
-        """Reset the formatting rules to the default values"""
-        self.table.default_rules = deepcopy(DEFAULT_RULES)
-        self.table.overrides[Axis.COLUMN] = {col: {} for col in self.table.table.columns}
-        self.table.overrides[Axis.ROW] = {row: {} for row in self.table.table.index}
+
 
     async def action_show_input(self) -> None:
         """Show the input screen for table input."""
@@ -451,7 +340,7 @@ class P2LApp(App):
         def update_table(table: pd.DataFrame | None) -> None:
             if table is not None:
                 self.table.table = table
-                self.reset_formatting_rules()
+                self.table.reset_formatting_rules()
                 self.data_table_screen.draw_table()
                 self.data_table_screen.status_bar.update("Table input successful.")
             else:

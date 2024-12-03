@@ -19,10 +19,17 @@ class Table:
             Axis.COLUMN: {},
             Axis.ROW: {},
         }
+        self.reset_formatting_rules()
         self.skip = {
             Axis.COLUMN: [],
             Axis.ROW: [],
         }
+
+    def reset_formatting_rules(self):
+        """Reset the formatting rules to the default values"""
+        self.default_rules = deepcopy(DEFAULT_RULES)
+        self.overrides[Axis.COLUMN] = {col: {} for col in self.table.columns}
+        self.overrides[Axis.ROW] = {row: {} for row in self.table.index}
 
     def highlight_table(self) -> None:
         """Highlight the table based on the current configuration."""
