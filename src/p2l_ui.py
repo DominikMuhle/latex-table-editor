@@ -10,7 +10,7 @@ from textual.screen import Screen, ModalScreen
 import pandas as pd
 import json
 
-from conversion import latex_table_to_dataframe, latex_table_to_dataframe2
+from conversion import latex_table_to_dataframe
 from table import Table
 from utils import AVAILABLE_RULES, RULES, Axis, Order, filter_rule_keys, is_instance_of
 from highlighting import DEFAULT_RULES
@@ -20,6 +20,7 @@ P2L is a tool that allows you to convert LaTeX tables to Pandas DataFrames and v
 It also provides a way to highlight the table data based on certain rules.\n
 Press 'N' to start a new input.\n
 """
+
 
 class WelcomeScreen(ModalScreen):
     """Welcome screen of the application."""
@@ -32,18 +33,17 @@ class WelcomeScreen(ModalScreen):
         self.app: P2LApp
         self.welcome_text = Static(WELCOME_TEXT, id="welcome")
 
-        yield Container(
-            self.welcome_text,
-            id="main"
-        )
+        yield Container(self.welcome_text, id="main")
 
     async def action_show_input(self) -> None:
         """Show the input screen for table input."""
         self.dismiss()
         await self.app.action_show_input()
 
+
 class LATeXOutputScreen(ModalScreen):
     """Screen for LaTeX output."""
+
     BINDINGS = [
         Binding("ctrl+r", "dismiss", "Return to DataTable"),
         Binding("ctrl+s", "save_to_file", "Save to File"),
@@ -56,14 +56,9 @@ class LATeXOutputScreen(ModalScreen):
         self.input = Input(placeholder="Enter the file name", id="input")
         self.footer = Footer(id="footer")
 
-        yield Container(
-            self.latex_output_area,
-            self.input,
-            id="main"
-        )
+        yield Container(self.latex_output_area, self.input, id="main")
         yield self.status_bar
         yield self.footer
-
 
     async def on_mount(self) -> None:
         """Focus on the LaTeX output area when the screen is mounted."""
@@ -71,7 +66,7 @@ class LATeXOutputScreen(ModalScreen):
 
         self.app.table.highlight_table()
 
-        self.latex_output_area.text = self.app.table.display_table.to_latex()
+        self.latex_output_area.text = self.app.table.display_dataframe.to_latex()
         # focus on the input area
         self.input.focus()
 
@@ -91,7 +86,7 @@ class LATeXOutputScreen(ModalScreen):
         if not file_name.parent.exists():
             self.status_bar.update("Parent directory does not exist.")
             return
-        
+
         with open(file_name, "w") as file:
             file.write(self.latex_output_area.text)
         self.status_bar.update(f"Saved LaTeX output to '{file_name}'.")
@@ -106,10 +101,7 @@ class DataTableScreen(Screen):
         self.status_bar = Static("Status: Ready", id="status")
         self.footer = Footer(id="footer")
 
-        yield Container(
-            self.data_table,
-            id="main"
-        )
+        yield Container(self.data_table, id="main")
         yield self.status_bar
         yield self.footer
 
@@ -119,14 +111,16 @@ class DataTableScreen(Screen):
         self.data_table.clear(columns=True)
 
         column_keys = []
-        for col in self.app.table.display_table.columns:
+        for col in self.app.table.display_dataframe.columns:
             key = self.app.table.multi_index_to_str(col)
             name = self.app.table.multi_index_to_str(col)
 
             if self.app.table.mode == Axis.COLUMN:
                 # get the ordering of the columns
-                order = self.app.table.overrides[Axis.COLUMN].get(col, {}).get(
-                    "order", self.app.table.default_rules["order"]
+                order = (
+                    self.app.table.overrides[Axis.COLUMN]
+                    .get(col, {})
+                    .get("order", self.app.table.default_rules["order"])
                 )
                 match order:
                     case Order.MINIMUM:
@@ -135,18 +129,20 @@ class DataTableScreen(Screen):
                         name = f"{name} (-)"
                     case Order.MAXIMUM:
                         name = f"{name} (^)"
-                
+
             self.data_table.add_column(label=name, key=key)
             column_keys.append(key)
 
         row_keys = []
-        for row in self.app.table.display_table.index:
-            row_data = self.app.table.display_table.loc[row]
+        for row in self.app.table.display_dataframe.index:
+            row_data = self.app.table.display_dataframe.loc[row]
             key = self.app.table.multi_index_to_str(row)
             name = self.app.table.multi_index_to_str(row)
             if self.app.table.mode == Axis.ROW:
-                order = self.app.table.overrides[Axis.ROW].get(name, {}).get(
-                    "order", self.app.table.default_rules["order"]
+                order = (
+                    self.app.table.overrides[Axis.ROW]
+                    .get(name, {})
+                    .get("order", self.app.table.default_rules["order"])
                 )
                 match order:
                     case Order.MINIMUM:
@@ -165,16 +161,29 @@ class DataTableScreen(Screen):
             case Axis.ROW:
                 for col_key in self.app.table.skip[Axis.COLUMN]:
                     for row_key in row_keys:
-                        cell_content = self.data_table.get_cell(row_key=row_key, column_key=col_key)
-                        self.data_table.update_cell(row_key=row_key, column_key=col_key, value=f"[grey54]{cell_content}[/grey54]", update_width=True)
+                        cell_content = self.data_table.get_cell(
+                            row_key=row_key, column_key=col_key
+                        )
+                        self.data_table.update_cell(
+                            row_key=row_key,
+                            column_key=col_key,
+                            value=f"[grey54]{cell_content}[/grey54]",
+                            update_width=True,
+                        )
             case Axis.COLUMN:
                 for row_key in self.app.table.skip[Axis.ROW]:
                     for col_key in column_keys:
-                        cell_content = self.data_table.get_cell(row_key=row_key, column_key=col_key)
-                        self.data_table.update_cell(row_key=row_key, column_key=col_key, value=f"[grey54]{cell_content}[/grey54]", update_width=True)
+                        cell_content = self.data_table.get_cell(
+                            row_key=row_key, column_key=col_key
+                        )
+                        self.data_table.update_cell(
+                            row_key=row_key,
+                            column_key=col_key,
+                            value=f"[grey54]{cell_content}[/grey54]",
+                            update_width=True,
+                        )
 
         self.refresh()
-        
 
     async def on_mount(self) -> None:
         """Initialize the DataTable with data."""
@@ -198,11 +207,7 @@ class InputScreen(ModalScreen):
         self.status_bar = Static("Status: Ready", id="status")
         self.footer = Footer(id="footer")
 
-        yield Grid(
-            self.info_text,
-            self.input_area,
-            id="grid_input"
-        )
+        yield Grid(self.info_text, self.input_area, id="grid_input")
         yield self.status_bar
         yield self.footer
 
@@ -217,7 +222,7 @@ class InputScreen(ModalScreen):
     async def handle_submit(self) -> None:
         """Handle submission of input data."""
         # app = self.app
-        self.dismiss(latex_table_to_dataframe2(self.input_area.text))
+        self.dismiss(latex_table_to_dataframe(self.input_area.text))
 
 
 class RulesInputScreen(ModalScreen):
@@ -227,7 +232,11 @@ class RulesInputScreen(ModalScreen):
         Binding("ctrl+s", "submit", "Submit"),
     ]
 
-    def __init__(self, rules: str, info_text: str = "Enter the highlighting rules in JSON format."):
+    def __init__(
+        self,
+        rules: str,
+        info_text: str = "Enter the highlighting rules in JSON format.",
+    ):
         super().__init__()
         self.rules = rules
         self.info_text = info_text
@@ -240,11 +249,7 @@ class RulesInputScreen(ModalScreen):
         self.status_bar = Static("Status: Ready", id="status")
         self.footer = Footer(id="footer")
 
-        yield Grid(
-            self.info_text,
-            self.highlight_input_area,
-            id="grid_input"
-        )
+        yield Grid(self.info_text, self.highlight_input_area, id="grid_input")
         yield self.status_bar
         yield self.footer
 
@@ -274,9 +279,7 @@ class RulesInputScreen(ModalScreen):
         # Filter out the keys that are not available in the rules dictionary
         rules, pop_keys = filter_rule_keys(rules)
         if pop_keys:
-            self.status_bar.update(
-                f"Invalid keys {pop_keys}. They have been removed."
-            )
+            self.status_bar.update(f"Invalid keys {pop_keys}. They have been removed.")
 
         # Filter out the keys that don't have matching types
         pop_keys = []
@@ -291,12 +294,11 @@ class RulesInputScreen(ModalScreen):
                 )
                 pop_keys.append(key)
 
-
         for key in pop_keys:
             rules.pop(key)
 
         return rules
-        
+
 
 class P2LApp(App):
     """Main application class."""
@@ -333,14 +335,12 @@ class P2LApp(App):
         """Reset the screen to the DataTable."""
         await self.switch_screen(self.data_table_screen)
 
-
-
     async def action_show_input(self) -> None:
         """Show the input screen for table input."""
 
         def update_table(table: pd.DataFrame | None) -> None:
             if table is not None:
-                self.table.table = table
+                self.table.dataframe = table
                 self.table.reset_formatting_rules()
                 self.data_table_screen.draw_table()
                 self.data_table_screen.status_bar.update("Table input successful.")
@@ -388,14 +388,16 @@ class P2LApp(App):
         """Show the input screen for column-specific highlighting rules."""
         # Get the name of the current cursor column from DataTableScreen
         try:
-            column_name = self.table.table.columns[
+            column_name = self.table.dataframe.columns[
                 self.data_table_screen.data_table.cursor_column
             ]
         except (IndexError, AttributeError):
             self.data_table_screen.status_bar.update("No column selected.")
             return
-        
-        info_text = f"Enter the highlighting rules for column '{column_name}' in JSON format."
+
+        info_text = (
+            f"Enter the highlighting rules for column '{column_name}' in JSON format."
+        )
 
         def update_highlighting(highlighting: dict[str, Any] | None) -> None:
             if highlighting is not None:
@@ -420,13 +422,13 @@ class P2LApp(App):
         """Show the input screen for row-specific highlighting rules."""
         # Get the name of the current cursor row from DataTableScreen
         try:
-            row_name = self.table.table.index[
+            row_name = self.table.dataframe.index[
                 self.data_table_screen.data_table.cursor_row
             ]
         except (IndexError, AttributeError):
             self.data_table_screen.status_bar.update("No row selected.")
             return
-        
+
         info_text = f"Enter the highlighting rules for row '{row_name}' in JSON format."
 
         def update_highlighting(highlighting: dict[str, Any] | None) -> None:
@@ -464,26 +466,26 @@ class P2LApp(App):
 
     def toggle_column(self) -> None:
         try:
-            column_name = self.table.table.columns[
+            column_name = self.table.dataframe.columns[
                 self.data_table_screen.data_table.cursor_column
             ]
         except (IndexError, AttributeError):
             self.data_table_screen.status_bar.update("No column selected.")
             return
-        
+
         self.table.toggle_skipping(Axis.COLUMN, column_name)
 
     def toggle_row(self) -> None:
         try:
-            row_name = self.table.table.index[
+            row_name = self.table.dataframe.index[
                 self.data_table_screen.data_table.cursor_row
             ]
         except (IndexError, AttributeError):
             self.data_table_screen.status_bar.update("No row selected.")
             return
-        
+
         self.table.toggle_skipping(Axis.ROW, row_name)
-        
+
     async def on_click(self, message: Click) -> None:
         """Handle click events on the DataTable columns."""
         if message.button != 1:
@@ -498,24 +500,28 @@ class P2LApp(App):
                     # Check if the clicked element is a row header
                     if element.hover_column != -1 or element.hover_row == -1:
                         return
-                    row_name = self.table.table.index[element.hover_row]
+                    row_name = self.table.dataframe.index[element.hover_row]
                     self.table.toggle_order(self.table.mode, row_name)
                 case Axis.COLUMN:
                     # Check if the clicked element is a column header
                     if element.hover_row != -1 or element.hover_column == -1:
                         return
-                    column_name = self.table.table.columns[element.hover_column]
+                    column_name = self.table.dataframe.columns[element.hover_column]
                     self.table.toggle_order(self.table.mode, column_name)
 
         self.data_table_screen.draw_table()
 
     async def action_start_selection_mode(self) -> None:
-        if self.table.table.empty:
+        if self.table.dataframe.empty:
             match self.table.mode:
                 case Axis.ROW:
-                    self.data_table_screen.status_bar.update("No data available to select rows.")
+                    self.data_table_screen.status_bar.update(
+                        "No data available to select rows."
+                    )
                 case Axis.COLUMN:
-                    self.data_table_screen.status_bar.update("No data available to select columns.")
+                    self.data_table_screen.status_bar.update(
+                        "No data available to select columns."
+                    )
             return
         self.selection_mode = True
         self.selected_data = []
@@ -538,27 +544,31 @@ class P2LApp(App):
 
         if not self.selection_mode:
             return
-        
+
         match self.table.mode:
             case Axis.COLUMN:
-                items = self.table.table.columns
+                items = self.table.dataframe.columns
                 cursor_position = self.data_table_screen.data_table.cursor_column
                 swap_method = self.table.swap_columns
             case Axis.ROW:
-                items = self.table.table.index
+                items = self.table.dataframe.index
                 cursor_position = self.data_table_screen.data_table.cursor_row
                 swap_method = self.table.swap_rows
 
         try:
             item_name = items[cursor_position]
         except IndexError:
-            self.data_table_screen.status_bar.update(f"Invalid {self.table.mode} selection.")
+            self.data_table_screen.status_bar.update(
+                f"Invalid {self.table.mode} selection."
+            )
             return
-        
+
         if item_name in self.selected_data:
-            self.data_table_screen.status_bar.update(f"{self.table.mode} '{item_name}' is already selected.")
+            self.data_table_screen.status_bar.update(
+                f"{self.table.mode} '{item_name}' is already selected."
+            )
             return
-        
+
         self.selected_data.append(item_name)
         remaining = 2 - len(self.selected_data)
         if remaining > 0:

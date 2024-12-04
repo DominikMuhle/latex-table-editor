@@ -26,11 +26,16 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
         if not line:
             continue
 
-        # Skip LaTeX table environment lines and \toprule, \bottomrule
+        # Skip LaTeX table environment lines and \toprule, \bottomrule, \hline, \cmidrule
         if re.match(r'\\begin\{tabular\}', line) or re.match(r'\\end\{tabular\}', line):
             continue
         if re.match(r'\\(top|bottom|mid)rule', line):
             continue
+        if re.match(r'\\hline', line):
+            continue
+        if re.match(r'\\cmidrule', line):
+            continue
+
 
         # Remove comments starting with %
         line = re.sub(r'%.*', '', line).strip()
