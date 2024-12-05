@@ -26,7 +26,7 @@ pip install git+https://github.com/DominikMuhle/latex-table-editor.git
 Run the application from the command line:
 
 ```bash
-ltm
+lte
 ```
 
 ## Keyboard Shortcuts
