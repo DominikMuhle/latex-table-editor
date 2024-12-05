@@ -28,7 +28,7 @@ class WelcomeScreen(ModalScreen):
     ]
 
     def compose(self) -> ComposeResult:
-        self.app: LTMApp
+        self.app: LTEApp
         self.welcome_text = Static(WELCOME_TEXT, id="welcome")
 
         yield Container(self.welcome_text, id="main")
@@ -48,7 +48,7 @@ class LATeXOutputScreen(ModalScreen):
     ]
 
     def compose(self) -> ComposeResult:
-        self.app: LTMApp
+        self.app: LTEApp
         self.latex_output_area = TextArea(read_only=True, id="latex_output")
         self.status_bar = Static("Status: Ready", id="status")
         self.input = Input(placeholder="Enter the file name", id="input")
@@ -94,7 +94,7 @@ class DataTableScreen(Screen):
     """Screen displaying the DataTable."""
 
     def compose(self) -> ComposeResult:
-        self.app: LTMApp
+        self.app: LTEApp
         self.data_table = DataTable(id="data_table")
         self.status_bar = Static("Status: Ready", id="status")
         self.footer = Footer(id="footer")
@@ -199,7 +199,7 @@ class InputScreen(ModalScreen):
 
     def __init__(self):
         super().__init__()
-        self.app: LTMApp
+        self.app: LTEApp
 
     def compose(self) -> ComposeResult:
         self.info_text = Static("Enter the table data in LaTeX format.", id="info")
@@ -242,7 +242,7 @@ class RulesInputScreen(ModalScreen):
         self.info_text = info_text
 
     def compose(self) -> ComposeResult:
-        self.app: LTMApp
+        self.app: LTEApp
         self.info_text = Static(str(self.info_text), id="info")
         self.highlight_input_area = TextArea(id="highlight_input")
         self.highlight_input_area.text = self.rules
@@ -300,7 +300,7 @@ class RulesInputScreen(ModalScreen):
         return rules
 
 
-class LTMApp(App):
+class LTEApp(App):
     """Main application class."""
 
     CSS_PATH = "p2l_ui.tcss"
@@ -671,4 +671,4 @@ class LTMApp(App):
 
 
 if __name__ == "__main__":
-    LTMApp().run()
+    LTEApp().run()
