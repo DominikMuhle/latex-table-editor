@@ -1,4 +1,3 @@
-from copy import deepcopy
 from pathlib import Path
 from typing import Any
 from textual.app import App, ComposeResult
@@ -10,10 +9,9 @@ from textual.screen import Screen, ModalScreen
 import pandas as pd
 import json
 
-from conversion import latex_table_to_dataframe
-from table import Table
-from utils import AVAILABLE_RULES, RULES, Axis, Order, filter_rule_keys, is_instance_of
-from highlighting import DEFAULT_RULES
+from .conversion import latex_table_to_dataframe
+from .table import Table
+from .utils import AVAILABLE_RULES, RULES, Axis, Order, filter_rule_keys, is_instance_of
 
 WELCOME_TEXT = """Welcome to P2L!\n
 P2L is a tool that allows you to convert LaTeX tables to Pandas DataFrames and vice versa.\n
@@ -30,7 +28,7 @@ class WelcomeScreen(ModalScreen):
     ]
 
     def compose(self) -> ComposeResult:
-        self.app: P2LApp
+        self.app: LTMApp
         self.welcome_text = Static(WELCOME_TEXT, id="welcome")
 
         yield Container(self.welcome_text, id="main")
@@ -50,7 +48,7 @@ class LATeXOutputScreen(ModalScreen):
     ]
 
     def compose(self) -> ComposeResult:
-        self.app: P2LApp
+        self.app: LTMApp
         self.latex_output_area = TextArea(read_only=True, id="latex_output")
         self.status_bar = Static("Status: Ready", id="status")
         self.input = Input(placeholder="Enter the file name", id="input")
@@ -96,7 +94,7 @@ class DataTableScreen(Screen):
     """Screen displaying the DataTable."""
 
     def compose(self) -> ComposeResult:
-        self.app: P2LApp
+        self.app: LTMApp
         self.data_table = DataTable(id="data_table")
         self.status_bar = Static("Status: Ready", id="status")
         self.footer = Footer(id="footer")
@@ -160,6 +158,7 @@ class DataTableScreen(Screen):
         match self.app.table.mode:
             case Axis.ROW:
                 for col_key in self.app.table.skip[Axis.COLUMN]:
+                    col_key = self.app.table.multi_index_to_str(col_key)
                     for row_key in row_keys:
                         cell_content = self.data_table.get_cell(
                             row_key=row_key, column_key=col_key
@@ -172,6 +171,7 @@ class DataTableScreen(Screen):
                         )
             case Axis.COLUMN:
                 for row_key in self.app.table.skip[Axis.ROW]:
+                    row_key = self.app.table.multi_index_to_str(row_key)
                     for col_key in column_keys:
                         cell_content = self.data_table.get_cell(
                             row_key=row_key, column_key=col_key
@@ -199,7 +199,7 @@ class InputScreen(ModalScreen):
 
     def __init__(self):
         super().__init__()
-        self.app: P2LApp
+        self.app: LTMApp
 
     def compose(self) -> ComposeResult:
         self.info_text = Static("Enter the table data in LaTeX format.", id="info")
@@ -242,7 +242,7 @@ class RulesInputScreen(ModalScreen):
         self.info_text = info_text
 
     def compose(self) -> ComposeResult:
-        self.app: P2LApp
+        self.app: LTMApp
         self.info_text = Static(str(self.info_text), id="info")
         self.highlight_input_area = TextArea(id="highlight_input")
         self.highlight_input_area.text = self.rules
@@ -300,21 +300,24 @@ class RulesInputScreen(ModalScreen):
         return rules
 
 
-class P2LApp(App):
+class LTMApp(App):
     """Main application class."""
 
     CSS_PATH = "p2l_ui.tcss"
 
     BINDINGS = [
-        Binding("N", "show_input", "New Input"),
-        Binding("T", "toggle_mode", "Toggle Row/Column Mode"),
-        Binding("L", "show_latex_output", "Show LaTeX Output"),
-        Binding("d", "show_edit_default_rules", "Edit Default Rules"),
+        Binding("N", "show_input", "new input"),
+        Binding("L", "show_latex_output", "show LaTeX"),
+        Binding("T", "toggle_mode", "toggle row/column mode"),
+        Binding("d", "show_edit_default_rules", "edit default rules"),
+        Binding("e", "show_edit_rules", "edit rules"),
+        Binding("o", "toggle_sorting_order", "toggle sorting order"),
+        Binding("+", "increase_precision", "increase precision"),
+        Binding("-", "decrease_precision", "decrease precision"),
         Binding("x", "toggle_cell", "skip/include row/column"),
-        Binding("e", "show_edit_rules", "Edit Rules"),
-        Binding("S", "start_selection_mode", "Start Swap Mode"),
-        Binding("s", "data_selection", "Select Row/Column", show=False),
-        Binding("click", "handle_click", "Toggle Order"),
+        Binding("S", "start_selection_mode", "start swap mode"),
+        Binding("s", "data_selection", "select row/column", show=False),
+        Binding("click", "handle_click", "toggle order", show=False),
     ]
 
     def __init__(self):
@@ -454,6 +457,8 @@ class P2LApp(App):
         """Toggle the row/column mode."""
         self.table.toggle_mode()
 
+        self.data_table_screen.draw_table()
+
     async def action_toggle_cell(self) -> None:
         """Toggle skipping or including a row/column."""
         match self.table.mode:
@@ -486,6 +491,57 @@ class P2LApp(App):
 
         self.table.toggle_skipping(Axis.ROW, row_name)
 
+    async def action_increase_precision(self) -> None:
+        """Increase the precision of a column or row."""
+        self.data_table_screen.status_bar.update("Increasing precision.")
+        match self.table.mode:
+            case Axis.COLUMN:
+                try:
+                    column_name = self.table.dataframe.columns[
+                        self.data_table_screen.data_table.cursor_column
+                    ]
+                except (IndexError, AttributeError):
+                    self.data_table_screen.status_bar.update("No column selected.")
+                    return
+                self.data_table_screen.status_bar.update("Increasing precision 2.")
+                self.table.increase_precision(Axis.COLUMN, column_name)
+            case Axis.ROW:
+                try:
+                    row_name = self.table.dataframe.index[
+                        self.data_table_screen.data_table.cursor_row
+                    ]
+                except (IndexError, AttributeError):
+                    self.data_table_screen.status_bar.update("No row selected.")
+                    return
+                self.data_table_screen.status_bar.update("Increasing precision 2.")
+                self.table.increase_precision(Axis.ROW, row_name)
+
+        self.data_table_screen.draw_table()
+
+    async def action_decrease_precision(self) -> None:
+        """Decrease the precision of a column or row."""
+        match self.table.mode:
+            case Axis.COLUMN:
+                try:
+                    column_name = self.table.dataframe.columns[
+                        self.data_table_screen.data_table.cursor_column
+                    ]
+                except (IndexError, AttributeError):
+                    self.data_table_screen.status_bar.update("No column selected.")
+                    return
+                self.table.decrease_precision(Axis.COLUMN, column_name)
+            case Axis.ROW:
+                try:
+                    row_name = self.table.dataframe.index[
+                        self.data_table_screen.data_table.cursor_row
+                    ]
+                except (IndexError, AttributeError):
+                    self.data_table_screen.status_bar.update("No row selected.")
+                    return
+                self.table.decrease_precision(Axis.ROW, row_name)
+
+        self.data_table_screen.draw_table()
+
     async def on_click(self, message: Click) -> None:
         """Handle click events on the DataTable columns."""
         if message.button != 1:
@@ -508,6 +564,30 @@ class P2LApp(App):
                         return
                     column_name = self.table.dataframe.columns[element.hover_column]
                     self.table.toggle_order(self.table.mode, column_name)
+
+        self.data_table_screen.draw_table()
+
+    async def action_toggle_sorting_order(self) -> None:
+        """Toggle the sorting order of a column or row."""
+        match self.table.mode:
+            case Axis.COLUMN:
+                try:
+                    column_name = self.table.dataframe.columns[
+                        self.data_table_screen.data_table.cursor_column
+                    ]
+                except (IndexError, AttributeError):
+                    self.data_table_screen.status_bar.update("No column selected.")
+                    return
+                self.table.toggle_order(self.table.mode, column_name)
+            case Axis.ROW:
+                try:
+                    row_name = self.table.dataframe.index[
+                        self.data_table_screen.data_table.cursor_row
+                    ]
+                except (IndexError, AttributeError):
+                    self.data_table_screen.status_bar.update("No row selected.")
+                    return
+                self.table.toggle_order(self.table.mode, row_name)
 
         self.data_table_screen.draw_table()
 
@@ -590,6 +670,5 @@ class P2LApp(App):
         self.data_table_screen.draw_table()
 
 
-# Ensure the App runs only if executed as the main module
 if __name__ == "__main__":
-    P2LApp().run()
+    LTMApp().run()

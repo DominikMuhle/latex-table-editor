@@ -1,8 +1,9 @@
 from copy import deepcopy
+import re
 import pandas as pd
 
-from highlighting import DEFAULT_RULES, table_highlighting
-from utils import Axis, Order
+from .highlighting import DEFAULT_RULES, table_highlighting
+from .utils import Axis, Order
 
 
 class Table:
@@ -93,6 +94,44 @@ class Table:
         else:
             self.skip[axis].append(name)
 
+        return True
+
+    def increase_precision(self, axis: Axis, name: str) -> bool:
+        """Increase the precision of a column or row."""
+        if axis == Axis.COLUMN and name not in self.dataframe.columns:
+            return False
+        if axis == Axis.ROW and name not in self.dataframe.index:
+            return False
+
+        current_precision = self.overrides[axis][name].get(
+            "precision", self.default_rules["precision"]
+        )  # string of form "%.Xf"
+        matching = re.match(r"%.(\d+)f", current_precision)
+        if not matching:
+            return False
+        significant_digits = int(matching.group(1))
+
+        self.overrides[axis][name]["precision"] = f"%.{significant_digits + 1}f"
+        return True
+
+    def decrease_precision(self, axis: Axis, name: str) -> bool:
+        """Decrease the precision of a column or row."""
+        if axis == Axis.COLUMN and name not in self.dataframe.columns:
+            return False
+        if axis == Axis.ROW and name not in self.dataframe.index:
+            return False
+
+        current_precision = self.overrides[axis][name].get(
+            "precision", self.default_rules["precision"]
+        )
+        matching = re.match(r"%.(\d+)f", current_precision)
+        if not matching:
+            return False
+        significant_digits = int(matching.group(1))
+        if significant_digits == 0:
+            return False
+
+        self.overrides[axis][name]["precision"] = f"%.{significant_digits - 1}f"
         return True
 
     def swap_columns(self, col1: tuple[str] | str, col2: tuple[str] | str) -> bool:
