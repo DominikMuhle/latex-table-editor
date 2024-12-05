@@ -1,8 +1,8 @@
-from latex_table_manipulator.ltm_app import LTMApp
+from latex_table_editor.lte_app import LTEApp
 
 
 def main():
-    app = LTMApp()
+    app = LTEApp()
     app.run()
 
 
