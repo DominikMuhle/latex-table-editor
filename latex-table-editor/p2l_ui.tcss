@@ -1,0 +1,55 @@
+
+#info {
+    height: 1;
+}
+#main {
+    height: 1fr;
+}
+#status {
+    height: 1;
+}
+#footer {
+    height: 1;
+}
+
+Screen {
+    layout: vertical;
+}
+Container#main {
+    height: 1fr;
+}
+
+Footer {
+    dock: bottom;
+    height: 1;
+}
+
+LatexOutputScreen {
+    align: center middle;
+}
+
+InputScreen {
+    align: center middle;
+
+}
+
+HighlightingInputScreen {
+    align: center middle;
+}
+
+#grid_input {
+    align: center middle;
+    content-align: center middle;
+    grid-size: 1 2;
+    grid-rows: 1 1fr;
+    grid-gutter: 1 0;
+    padding: 0 0;
+    width: 100%;
+    height: 80%;
+    border: thick $background 80%;
+    background: $surface;
+}
+
+#input, #highlight_input {
+    content-align: center middle;
+}
