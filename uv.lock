@@ -276,7 +276,7 @@ wheels = [
 ]
 
 [[package]]
-name = "pandas2latex"
+name = "latex-table-editor"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
