@@ -4,7 +4,7 @@ import warnings
 
 import pandas as pd
 
-from .utils import Axis, Order
+from latex_table_editor.utils import Axis, Order
 
 DEFAULT_RULES = {
     "order": Order.NEUTRAL,

@@ -9,9 +9,16 @@ from textual.screen import Screen, ModalScreen
 import pandas as pd
 import json
 
-from .conversion import latex_table_to_dataframe
-from .table import Table
-from .utils import AVAILABLE_RULES, RULES, Axis, Order, filter_rule_keys, is_instance_of
+from latex_table_editor.conversion import latex_table_to_dataframe
+from latex_table_editor.table import Table
+from latex_table_editor.utils import (
+    AVAILABLE_RULES,
+    RULES,
+    Axis,
+    Order,
+    filter_rule_keys,
+    is_instance_of,
+)
 
 WELCOME_TEXT = """Welcome to P2L!\n
 P2L is a tool that allows you to convert LaTeX tables to Pandas DataFrames and vice versa.\n
@@ -621,7 +628,6 @@ class LTEApp(App):
         self.data_table_screen.status_bar.update("Exiting Selection Mode.")
 
     async def action_data_selection(self) -> None:
-
         if not self.selection_mode:
             return
 

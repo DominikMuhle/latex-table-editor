@@ -2,8 +2,8 @@ from copy import deepcopy
 import re
 import pandas as pd
 
-from .highlighting import DEFAULT_RULES, table_highlighting
-from .utils import Axis, Order
+from latex_table_editor.highlighting import DEFAULT_RULES, table_highlighting
+from latex_table_editor.utils import Axis, Order
 
 
 class Table:
@@ -43,12 +43,16 @@ class Table:
             self.skip[Axis.COLUMN] if self.mode == Axis.ROW else self.skip[Axis.ROW],
         )
 
-    def multi_index_to_str(self, multi_index: tuple[str] | str) -> str:
+    def multi_index_to_str(self, multi_index: tuple[str | int] | str | int) -> str:
         """Convert a multi-index to a string."""
         if isinstance(multi_index, tuple):
-            return " ".join(multi_index)
+            # Convert each element to a string
+            multi_index_ = [str(elem) for elem in multi_index]
+            return " ".join(multi_index_)
         if isinstance(multi_index, str):
             return multi_index
+        if isinstance(multi_index, int):
+            return str(multi_index)
         raise ValueError("multi_index must be a tuple or a string.")
 
     def toggle_mode(self) -> None:

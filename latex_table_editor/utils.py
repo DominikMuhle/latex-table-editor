@@ -22,14 +22,16 @@ AVAILABLE_RULES = {
 RULE_TYPES = Order | str | list[str]
 RULES = dict[str, RULE_TYPES]
 
+
 def is_instance_of(var, var_type):
     """Check if a variable is an instance of a type"""
-   
+
     # check if var_type is a union
     if len(get_args(var_type)) == 0:
         return isinstance(var, var_type)
     else:
         return is_instance_of_union(var, var_type)
+
 
 def is_instance_of_union(var, union_type):
     """Check if a variable is an instance of a union type"""
@@ -53,5 +55,5 @@ def filter_rule_keys(rules: RULES) -> tuple[RULES, list[str]]:
             pop_keys.append(key)
     for key in pop_keys:
         rules.pop(key)
-        
+
     return rules, pop_keys
