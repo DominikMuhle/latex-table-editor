@@ -1,5 +1,7 @@
 from pathlib import Path
 from typing import Any
+
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Container, Grid
 from textual.widgets import TextArea, DataTable, Footer, Static, Input
@@ -114,26 +116,28 @@ class DataTableScreen(Screen):
         self.app.table.highlight_table()
 
         self.data_table.clear(columns=True)
+        # set the header height to the number of header rows in the dataframe
+        self.data_table.header_height = self.app.table.dataframe.columns.nlevels
 
         column_keys = []
         for col in self.app.table.display_dataframe.columns:
-            key = self.app.table.multi_index_to_str(col)
-            name = self.app.table.multi_index_to_str(col)
+            key = self.app.table.col_index_to_str(col)
+            name = self.app.table.col_index_to_str(col)
 
-            if self.app.table.mode == Axis.COLUMN:
-                # get the ordering of the columns
-                order = (
-                    self.app.table.overrides[Axis.COLUMN]
-                    .get(col, {})
-                    .get("order", self.app.table.default_rules["order"])
-                )
-                match order:
-                    case Order.MINIMUM:
-                        name = f"{name} (v)"
-                    case Order.NEUTRAL:
-                        name = f"{name} (-)"
-                    case Order.MAXIMUM:
-                        name = f"{name} (^)"
+            # if self.app.table.mode == Axis.COLUMN:
+            #     # get the ordering of the columns
+            #     order = (
+            #         self.app.table.overrides[Axis.COLUMN]
+            #         .get(col, {})
+            #         .get("order", self.app.table.default_rules["order"])
+            #     )
+            #     match order:
+            #         case Order.MINIMUM:
+            #             name = f"{name} (v)"
+            #         case Order.NEUTRAL:
+            #             name = f"{name} (-)"
+            #         case Order.MAXIMUM:
+            #             name = f"{name} (^)"
 
             self.data_table.add_column(label=name, key=key)
             column_keys.append(key)
@@ -141,31 +145,102 @@ class DataTableScreen(Screen):
         row_keys = []
         for row in self.app.table.display_dataframe.index:
             row_data = self.app.table.display_dataframe.loc[row]
-            key = self.app.table.multi_index_to_str(row)
-            name = self.app.table.multi_index_to_str(row)
-            if self.app.table.mode == Axis.ROW:
-                order = (
-                    self.app.table.overrides[Axis.ROW]
-                    .get(name, {})
-                    .get("order", self.app.table.default_rules["order"])
-                )
-                match order:
-                    case Order.MINIMUM:
-                        name = f"{name} (v)"
-                    case Order.NEUTRAL:
-                        name = f"{name} (-)"
-                    case Order.MAXIMUM:
-                        name = f"{name} (^)"
+            key = self.app.table.row_index_to_str(row)
+            name = self.app.table.row_index_to_str(row)
+            # if self.app.table.mode == Axis.ROW:
+            #     order = (
+            #         self.app.table.overrides[Axis.ROW]
+            #         .get(name, {})
+            #         .get("order", self.app.table.default_rules["order"])
+            #     )
+            #     match order:
+            #         case Order.MINIMUM:
+            #             name = f"{name} (v)"
+            #         case Order.NEUTRAL:
+            #             name = f"{name} (-)"
+            #         case Order.MAXIMUM:
+            #             name = f"{name} (^)"
 
             self.data_table.add_row(
                 *[str(value) for value in row_data], key=key, label=name
             )
             row_keys.append(key)
 
+        self.update_table()
+        self.refresh()
+
+    def update_table(self) -> None:
+        """Update the DataTable without recreating it."""
+        self.app.table.highlight_table()
+
+        column_keys = [
+            self.app.table.col_index_to_str(col)
+            for col in self.app.table.display_dataframe.columns
+        ]
+        row_keys = [
+            self.app.table.row_index_to_str(row)
+            for row in self.app.table.display_dataframe.index
+        ]
+
+        # # Update the table column names
+        for col in self.app.table.display_dataframe.columns:
+            label = self.app.table.col_index_to_str(col)
+            dt_column = self.data_table.columns[label]
+            if self.app.table.mode == Axis.COLUMN:
+                order = (
+                    self.app.table.overrides[Axis.COLUMN]
+                    .get(col, {})
+                    .get("order", self.app.table.default_rules["order"])
+                )
+                match order:
+                    case Order.MINIMUM:
+                        label = f"{label} (v)"
+                    case Order.NEUTRAL:
+                        label = f"{label} (-)"
+                    case Order.MAXIMUM:
+                        label = f"{label} (^)"
+
+            dt_column.label = (
+                Text.from_markup(label) if isinstance(label, str) else label
+            )
+
+        # Update the table row names
+        for row in self.app.table.display_dataframe.index:
+            label = self.app.table.row_index_to_str(row)
+            dt_row = self.data_table.rows[label]
+            if self.app.table.mode == Axis.ROW:
+                order = (
+                    self.app.table.overrides[Axis.ROW]
+                    .get(row, {})
+                    .get("order", self.app.table.default_rules["order"])
+                )
+                match order:
+                    case Order.MINIMUM:
+                        label = f"{label} (v)"
+                    case Order.NEUTRAL:
+                        label = f"{label} (-)"
+                    case Order.MAXIMUM:
+                        label = f"{label} (^)"
+
+            dt_row.label = Text.from_markup(label) if isinstance(label, str) else label
+
+        for row in self.app.table.display_dataframe.index:
+            row_key = self.app.table.row_index_to_str(row)
+            for col in self.app.table.display_dataframe.columns:
+                col_key = self.app.table.col_index_to_str(col)
+                cell_content = self.app.table.display_dataframe[col][row]
+                self.data_table.update_cell(
+                    row_key=row_key,
+                    column_key=col_key,
+                    value=cell_content,
+                    update_width=True,
+                )
+
+        # Apply any necessary styles or highlights
         match self.app.table.mode:
             case Axis.ROW:
                 for col_key in self.app.table.skip[Axis.COLUMN]:
-                    col_key = self.app.table.multi_index_to_str(col_key)
+                    col_key = self.app.table.col_index_to_str(col_key)
                     for row_key in row_keys:
                         cell_content = self.data_table.get_cell(
                             row_key=row_key, column_key=col_key
@@ -178,7 +253,7 @@ class DataTableScreen(Screen):
                         )
             case Axis.COLUMN:
                 for row_key in self.app.table.skip[Axis.ROW]:
-                    row_key = self.app.table.multi_index_to_str(row_key)
+                    row_key = self.app.table.row_index_to_str(row_key)
                     for col_key in column_keys:
                         cell_content = self.data_table.get_cell(
                             row_key=row_key, column_key=col_key
@@ -190,6 +265,11 @@ class DataTableScreen(Screen):
                             update_width=True,
                         )
 
+        self.refresh()
+        # self.data_table._update_column_widths()
+        self.data_table.show_row_labels = False
+        self.refresh()
+        self.data_table.show_row_labels = True
         self.refresh()
 
     async def on_mount(self) -> None:
@@ -364,7 +444,7 @@ class LTEApp(App):
         """Show the LaTeX output screen."""
 
         self.push_screen(LATeXOutputScreen())
-        self.data_table_screen.draw_table()
+        self.data_table_screen.update_table()
 
     async def action_show_edit_default_rules(self) -> None:
         """Show the input screen for editing the default highlighting rules."""
@@ -373,7 +453,7 @@ class LTEApp(App):
         def update_highlighting(highlighting: dict[str, Any] | None) -> None:
             if highlighting is not None:
                 self.table.default_rules = highlighting
-                self.data_table_screen.draw_table()
+                self.data_table_screen.update_table()
                 self.data_table_screen.status_bar.update(
                     "Default Highlighting rules updated."
                 )
@@ -384,7 +464,7 @@ class LTEApp(App):
             RulesInputScreen(json.dumps(self.table.default_rules, indent=4), info_text),
             update_highlighting,
         )
-        self.data_table_screen.draw_table()
+        self.data_table_screen.update_table()
 
     async def action_show_edit_rules(self) -> None:
         """Show the input screen for column/row-specific highlighting rules."""
@@ -412,7 +492,7 @@ class LTEApp(App):
         def update_highlighting(highlighting: dict[str, Any] | None) -> None:
             if highlighting is not None:
                 self.table.overrides[Axis.COLUMN][column_name] = highlighting
-                self.data_table_screen.draw_table()
+                self.data_table_screen.update_table()
                 self.data_table_screen.status_bar.update(
                     f"Highlighting rules updated for '{column_name}'."
                 )
@@ -426,7 +506,7 @@ class LTEApp(App):
             RulesInputScreen(json.dumps(column_rules, indent=4), info_text),
             update_highlighting,
         )
-        self.data_table_screen.draw_table()
+        self.data_table_screen.update_table()
 
     async def show_row_rules(self) -> None:
         """Show the input screen for row-specific highlighting rules."""
@@ -444,7 +524,7 @@ class LTEApp(App):
         def update_highlighting(highlighting: dict[str, Any] | None) -> None:
             if highlighting is not None:
                 self.table.overrides[Axis.ROW][row_name] = highlighting
-                self.data_table_screen.draw_table()
+                self.data_table_screen.update_table()
                 self.data_table_screen.status_bar.update(
                     f"Highlighting rules updated for '{row_name}'."
                 )
@@ -458,13 +538,13 @@ class LTEApp(App):
             RulesInputScreen(json.dumps(row_rules, indent=4), info_text),
             update_highlighting,
         )
-        self.data_table_screen.draw_table()
+        self.data_table_screen.update_table()
 
     async def action_toggle_mode(self) -> None:
         """Toggle the row/column mode."""
         self.table.toggle_mode()
 
-        self.data_table_screen.draw_table()
+        self.data_table_screen.update_table()
 
     async def action_toggle_cell(self) -> None:
         """Toggle skipping or including a row/column."""
@@ -474,7 +554,7 @@ class LTEApp(App):
             case Axis.ROW:
                 self.toggle_column()
 
-        self.data_table_screen.draw_table()
+        self.data_table_screen.update_table()
 
     def toggle_column(self) -> None:
         try:
@@ -523,7 +603,7 @@ class LTEApp(App):
                 self.data_table_screen.status_bar.update("Increasing precision 2.")
                 self.table.increase_precision(Axis.ROW, row_name)
 
-        self.data_table_screen.draw_table()
+        self.data_table_screen.update_table()
 
     async def action_decrease_precision(self) -> None:
         """Decrease the precision of a column or row."""
@@ -547,7 +627,7 @@ class LTEApp(App):
                     return
                 self.table.decrease_precision(Axis.ROW, row_name)
 
-        self.data_table_screen.draw_table()
+        self.data_table_screen.update_table()
 
     async def on_click(self, message: Click) -> None:
         """Handle click events on the DataTable columns."""
@@ -572,7 +652,7 @@ class LTEApp(App):
                     column_name = self.table.dataframe.columns[element.hover_column]
                     self.table.toggle_order(self.table.mode, column_name)
 
-        self.data_table_screen.draw_table()
+            self.data_table_screen.update_table()
 
     async def action_toggle_sorting_order(self) -> None:
         """Toggle the sorting order of a column or row."""
@@ -596,7 +676,7 @@ class LTEApp(App):
                     return
                 self.table.toggle_order(self.table.mode, row_name)
 
-        self.data_table_screen.draw_table()
+        self.data_table_screen.update_table()
 
     async def action_start_selection_mode(self) -> None:
         if self.table.dataframe.empty:
@@ -673,7 +753,7 @@ class LTEApp(App):
                 )
             await self.disable_selection_mode()
 
-        self.data_table_screen.draw_table()
+        self.data_table_screen.update_table()
 
 
 if __name__ == "__main__":
