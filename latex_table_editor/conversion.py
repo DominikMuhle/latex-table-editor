@@ -71,7 +71,7 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
     final_lines = []
     multirow_counters = {}
     for line in data_lines:
-        if not line:
+        if not line.strip():
             continue
 
         # Split the line by '&' and strip whitespace from each cell
@@ -113,13 +113,23 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
 
         final_lines.append(final_cells)
 
-    # Create DataFrame
+    # Create DataFrame from parsed data_lines
     df = pd.DataFrame(final_lines)
 
     # replace NaN values with empty strings
     df = df.fillna("")
+    return df
 
-    # Function to extract numerical value from a cell
+def extract_numbers_from_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Extract numerical values from DataFrame cells.
+
+    Parameters:
+    - df (pd.DataFrame): DataFrame with string values.
+
+    Returns:
+    - pd.DataFrame: DataFrame with numerical values extracted.
+    """
     def extract_number(cell):
         if cell == "":
             return cell
@@ -131,15 +141,26 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
             return float(cell_wo_commands)
         return cell
 
-    # Apply the extraction function to all cells
-    df = df.applymap(extract_number)
+    return df.applymap(extract_number)
 
-    # Figure out which rows are headers and which columns are indices by checking where there are numbers
+def infer_headers_and_indices(df: pd.DataFrame) -> tuple[int, int]:
+    """
+    Infer the number of header rows and index columns from a DataFrame. 
+
+    Parameters:
+    - df (pd.DataFrame): DataFrame to infer header rows and index columns from.
+
+    Returns:
+    - tuple[int, int]: Number of header rows and index columns
+    """
+    # Figure out which rows are headers
     header_indices = []
     for idx, row in df.iterrows():
         if any(isinstance(cell, float) for cell in row):
             break
         header_indices.append(idx)
+
+    # Figure out which columns are indices
     index_indices = []
     for idx, col in enumerate(df):
         column = df[col]
@@ -147,17 +168,4 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
             break
         index_indices.append(idx)
 
-    # extract the headers and indices
-    non_index_columns = [
-        idx for idx in range(len(df.columns)) if idx not in index_indices
-    ]
-    non_header_rows = [idx for idx in range(len(df)) if idx not in header_indices]
-    headers = df.iloc[header_indices, non_index_columns].values.tolist()
-    indices = df.iloc[non_header_rows, index_indices].T.values.tolist()
-    data = df.iloc[non_header_rows, non_index_columns]
-
-    return pd.DataFrame(
-        data.values,
-        index=indices if indices else None,
-        columns=headers if headers else None,
-    )
+    return len(header_indices), len(index_indices)

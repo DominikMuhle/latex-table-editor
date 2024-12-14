@@ -1,17 +1,21 @@
+import json
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.containers import Container, Grid
-from textual.widgets import TextArea, DataTable, Footer, Static, Input
 from textual.binding import Binding
+from textual.containers import Container, Grid
 from textual.events import Click
-from textual.screen import Screen, ModalScreen
-import pandas as pd
-import json
+from textual.screen import ModalScreen, Screen
+from textual.widgets import DataTable, Footer, Input, Static, TextArea
 
-from latex_table_editor.conversion import latex_table_to_dataframe
+from latex_table_editor.conversion import (
+    extract_numbers_from_dataframe,
+    infer_headers_and_indices,
+    latex_table_to_dataframe,
+)
 from latex_table_editor.table import Table
 from latex_table_editor.utils import (
     AVAILABLE_RULES,
@@ -387,6 +391,93 @@ class RulesInputScreen(ModalScreen):
         return rules
 
 
+class HeaderIndexSelectionScreen(ModalScreen):
+    """Screen to adjust header rows and index columns."""
+
+    BINDINGS = [
+        Binding("k", "increase_num_header_rows", "Increase Header Rows"),
+        Binding("i", "decrease_num_header_rows", "Decrease Header Rows"),
+        Binding("l", "increase_num_index_columns", "Increase Index Columns"),
+        Binding("j", "decrease_num_index_columns", "Decrease Index Columns"),
+        Binding("escape", "exit", "Exit"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        self.app: LTEApp
+        self.data_table = DataTable(id="str_data_table")
+        self.status_bar = Static("Use arrow keys to adjust headers and indices.", id="status")
+        self.footer = Footer()
+
+        yield Container(self.data_table, id="main")
+        yield self.status_bar
+        yield self.footer
+
+    async def on_mount(self) -> None:
+        """Initialize the DataTable with str_dataframe."""
+        self.draw_table()
+
+    def draw_table(self) -> None:
+        """Draw the DataTable with str_dataframe."""
+        self.data_table.clear(columns=True)
+        df = self.app.table.str_dataframe
+
+        # Add columns
+        for col in df.columns:
+            self.data_table.add_column(str(col), key=str(col))
+
+        # Add rows
+        for index, row in df.iterrows():
+            self.data_table.add_row(*[str(value) for value in row], key=str(index))
+
+        self.update_table()
+
+    def update_table(self) -> None:
+        """Update the DataTable to display str_dataframe with highlights."""
+        df = self.app.table.str_dataframe
+
+        for index, row in df.iterrows():
+            for col, value in row.items():
+                value = str(value)
+                if index < self.app.table.num_header_rows:
+                    value = f"[red]{value}[/red]"
+                if col in df.columns[: self.app.table.num_index_columns]:
+                    value = f"[red]{value}[/red]"
+
+                self.data_table.update_cell(
+                    row_key=str(index), column_key=str(col), value=value
+                )
+
+    async def action_increase_num_header_rows(self) -> None:
+        """Increase the number of header rows."""
+        self.app.table.num_header_rows += 1
+        self.app.table.update_from_str_dataframe()
+        self.update_table()
+
+    async def action_decrease_num_header_rows(self) -> None:
+        """Decrease the number of header rows."""
+        if self.app.table.num_header_rows > 0:
+            self.app.table.num_header_rows -= 1
+            self.app.table.update_from_str_dataframe()
+            self.update_table()
+
+    async def action_increase_num_index_columns(self) -> None:
+        """Increase the number of index columns."""
+        self.app.table.num_index_columns += 1
+        self.app.table.update_from_str_dataframe()
+        self.update_table()
+
+    async def action_decrease_num_index_columns(self) -> None:
+        """Decrease the number of index columns."""
+        if self.app.table.num_index_columns > 0:
+            self.app.table.num_index_columns -= 1
+            self.app.table.update_from_str_dataframe()
+            self.update_table()
+
+    async def action_exit(self) -> None:
+        """Exit the screen."""
+        self.dismiss()
+
+
 class LTEApp(App):
     """Main application class."""
 
@@ -405,6 +496,7 @@ class LTEApp(App):
         Binding("S", "start_selection_mode", "start swap mode"),
         Binding("s", "data_selection", "select row/column", show=False),
         Binding("click", "handle_click", "toggle order", show=False),
+        Binding("t", "show_header_index_selection", "Adjust Headers/Indices"),
     ]
 
     def __init__(self):
@@ -428,9 +520,14 @@ class LTEApp(App):
     async def action_show_input(self) -> None:
         """Show the input screen for table input."""
 
-        def update_table(table: pd.DataFrame | None) -> None:
-            if table is not None:
-                self.table.dataframe = table
+        def update_table(str_table: pd.DataFrame | None) -> None:
+            if str_table is not None:
+                # infer how many header rows and columns are from the raw data. This can be changed by the user manually later.
+                self.table.str_dataframe = str_table
+                
+                numeric_df = extract_numbers_from_dataframe(str_table.copy())
+                self.table.set_headers_and_indices(*infer_headers_and_indices(numeric_df))
+
                 self.table.reset_formatting_rules()
                 self.data_table_screen.draw_table()
                 self.data_table_screen.status_bar.update("Table input successful.")
@@ -445,6 +542,14 @@ class LTEApp(App):
 
         self.push_screen(LATeXOutputScreen())
         self.data_table_screen.update_table()
+
+    async def action_show_header_index_selection(self) -> None:
+        """Show the screen for adjusting header rows and index columns."""
+        def update_table(_: None) -> None:
+            self.table.reset_formatting_rules()
+            self.data_table_screen.draw_table()
+
+        self.push_screen(HeaderIndexSelectionScreen(), update_table)
 
     async def action_show_edit_default_rules(self) -> None:
         """Show the input screen for editing the default highlighting rules."""

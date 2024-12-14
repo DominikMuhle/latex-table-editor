@@ -1,7 +1,9 @@
-from copy import deepcopy
 import re
+from copy import deepcopy
+
 import pandas as pd
 
+from latex_table_editor.conversion import extract_numbers_from_dataframe
 from latex_table_editor.highlighting import DEFAULT_RULES, table_highlighting
 from latex_table_editor.utils import Axis, Order
 
@@ -9,8 +11,11 @@ from latex_table_editor.utils import Axis, Order
 class Table:
     def __init__(self):
         # data
+        self.str_dataframe = pd.DataFrame()
         self.dataframe = pd.DataFrame()
         self.display_dataframe = pd.DataFrame()
+        self.num_header_rows = 0
+        self.num_index_columns = 0
 
         # configuration
         self.mode = Axis.COLUMN
@@ -178,3 +183,41 @@ class Table:
         self.dataframe = self.dataframe.reindex(rows)
 
         return True
+
+    def set_headers_and_indices(self, num_header_rows: int, num_index_columns: int) -> None:
+        """Set the number of header rows and index columns."""
+
+        self.num_header_rows = num_header_rows
+        self.num_index_columns = num_index_columns
+
+        self.update_from_str_dataframe()
+
+    def update_from_str_dataframe(self) -> None:
+        """Create the dataframe from _dataframe given the number of header rows and index columns."""
+        # Start with a copy of _dataframe
+        df = self.str_dataframe.copy()
+
+        # Set up header rows
+        if self.num_header_rows > 0:
+            # Extract header rows
+            header_rows = [df.iloc[i] for i in range(self.num_header_rows)]
+            # Remove header rows from data
+            df = df.iloc[self.num_header_rows:].reset_index(drop=True)
+            # Create MultiIndex for columns
+            df.columns = pd.MultiIndex.from_arrays([row.values for row in header_rows])
+        else:
+            df.columns = df.columns  # Keep existing columns
+
+        # Set up index columns
+        if self.num_index_columns > 0:
+            # Extract index columns
+            index_columns = [df.iloc[:, i] for i in range(self.num_index_columns)]
+            # Remove index columns from data
+            df = df.iloc[:, self.num_index_columns:]
+            # Create MultiIndex for index
+            df.index = pd.MultiIndex.from_arrays(index_columns)
+        else:
+            df.index = df.index  # Keep existing index
+
+        # Assign to dataframe
+        self.dataframe = extract_numbers_from_dataframe(df)

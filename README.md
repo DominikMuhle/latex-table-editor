@@ -119,6 +119,36 @@ This rule will highlight the largest value in **bold** and <u>underlined</u>, wh
 - textual >= 0.87.1
 - pytest >= 8.3.3 (for running tests)
 
+## Development
+
+### Setting up the python environment
+
+To automatically setup the python environment you need to install uv. You can install it using pip:
+
+```bash
+pip install uv
+```
+
+After installing uv you can setup the python environment from the pyproject.toml file using the following command:
+
+```bash
+uv sync
+```
+
+Aciivate the environment using:
+
+```bash
+source .venv/bin/activate
+```
+
+### Running the tests
+
+To run the tests, use the following command:
+
+```bash
+pytest
+```
+
 ## Contributing
 
 Contributions are welcome! Please submit a pull request or open an issue to discuss any changes or suggestions.
