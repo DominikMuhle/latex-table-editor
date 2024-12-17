@@ -4,8 +4,8 @@ from copy import deepcopy
 import pandas as pd
 
 from latex_table_editor.conversion import extract_numbers_from_dataframe
-from latex_table_editor.highlighting import DEFAULT_RULES, table_highlighting
-from latex_table_editor.utils import Axis, Order
+from latex_table_editor.highlighting import table_highlighting
+from latex_table_editor.utils import DEFAULT_RULES, Axis, Order, Rule
 
 
 class Table:
@@ -19,10 +19,10 @@ class Table:
 
         # configuration
         self.mode = Axis.COLUMN
-        self.default_rules = deepcopy(DEFAULT_RULES)
+        self.default_rule = deepcopy(DEFAULT_RULES)
         self.overrides = {
-            Axis.COLUMN: {},
-            Axis.ROW: {},
+            Axis.COLUMN: {col: Rule(**{}) for col in self.dataframe.columns},
+            Axis.ROW: {row: Rule(**{}) for row in self.dataframe.index},
         }
         self.reset_formatting_rules()
         self.skip = {
@@ -32,9 +32,13 @@ class Table:
 
     def reset_formatting_rules(self):
         """Reset the formatting rules to the default values"""
-        self.default_rules = deepcopy(DEFAULT_RULES)
-        self.overrides[Axis.COLUMN] = {col: {} for col in self.dataframe.columns}
-        self.overrides[Axis.ROW] = {row: {} for row in self.dataframe.index}
+        self.default_rule = deepcopy(DEFAULT_RULES)
+        self.overrides[Axis.COLUMN] = {
+            col: Rule(**{}) for col in self.dataframe.columns
+        }
+        self.overrides[Axis.ROW] = {
+            row: Rule(**{}) for row in self.dataframe.index
+        }
 
     def highlight_table(self) -> None:
         """Highlight the table based on the current configuration."""
@@ -43,7 +47,7 @@ class Table:
         self.display_dataframe = table_highlighting(
             self.display_dataframe,
             self.mode,
-            self.default_rules,
+            self.default_rule,
             self.overrides[self.mode],
             self.skip[Axis.COLUMN] if self.mode == Axis.ROW else self.skip[Axis.ROW],
         )
@@ -94,10 +98,8 @@ class Table:
         if axis == Axis.ROW and name not in self.dataframe.index:
             return False
 
-        current_order = self.overrides[axis][name].get(
-            "order", self.default_rules["order"]
-        )
-        self.overrides[axis][name]["order"] = swap(current_order)
+        current_order = self.overrides[axis][name].order or self.default_rule.order
+        self.overrides[axis][name].order = swap(current_order)
 
         return True
 
@@ -124,9 +126,7 @@ class Table:
         if axis == Axis.ROW and name not in self.dataframe.index:
             return False
 
-        current_precision = self.overrides[axis][name].get(
-            "precision", self.default_rules["precision"]
-        )  # string of form "%.Xf"
+        current_precision = self.overrides[axis][name].precision or self.default_rule.precision
         matching = re.match(r"%.(\d+)f", current_precision)
         if not matching:
             return False
@@ -142,9 +142,7 @@ class Table:
         if axis == Axis.ROW and name not in self.dataframe.index:
             return False
 
-        current_precision = self.overrides[axis][name].get(
-            "precision", self.default_rules["precision"]
-        )
+        current_precision = self.overrides[axis][name].precision or self.default_rule.precision
         matching = re.match(r"%.(\d+)f", current_precision)
         if not matching:
             return False

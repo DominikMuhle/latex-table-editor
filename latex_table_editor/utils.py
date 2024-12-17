@@ -1,5 +1,6 @@
-from typing import get_args, get_origin
+from dataclasses import dataclass
 from enum import Enum
+from typing import get_args, get_origin
 
 
 class Axis(str, Enum):
@@ -13,14 +14,19 @@ class Order(str, Enum):
     MAXIMUM = "max"
 
 
-AVAILABLE_RULES = {
-    "order": Order | str,
-    "highlight": list[str],
-    "default": str,
-    "precision": str,
-}
-RULE_TYPES = Order | str | list[str]
-RULES = dict[str, RULE_TYPES]
+@dataclass
+class Rule:
+    order: Order | None = None
+    highlighting: list[str] | None = None
+    default: str | None = None
+    precision: str | None = None
+
+DEFAULT_RULES = Rule(
+    order=Order.NEUTRAL,
+    highlighting=["\\bfseries{%s}", "\\underline{%s}"],
+    default="%s",
+    precision="%.2f",
+)
 
 
 def is_instance_of(var, var_type):
@@ -47,11 +53,11 @@ def is_instance_of_union(var, union_type):
     return False
 
 
-def filter_rule_keys(rules: RULES) -> tuple[RULES, list[str]]:
+def filter_rule_keys(rules: dict[str, Rule]) -> tuple[dict[str, Rule], list[str]]:
     """Filter out the keys that are not available in the rules dictionary"""
     pop_keys = []
     for key in rules.keys():
-        if key not in AVAILABLE_RULES:
+        if key not in DEFAULT_RULES.__annotations__:
             pop_keys.append(key)
     for key in pop_keys:
         rules.pop(key)

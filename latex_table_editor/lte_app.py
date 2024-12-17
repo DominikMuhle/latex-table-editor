@@ -29,14 +29,7 @@ from latex_table_editor.conversion import (
     yaml_to_dataframe,
 )
 from latex_table_editor.table import Table
-from latex_table_editor.utils import (
-    AVAILABLE_RULES,
-    RULES,
-    Axis,
-    Order,
-    filter_rule_keys,
-    is_instance_of,
-)
+from latex_table_editor.utils import Axis, Order, Rule, filter_rule_keys
 
 WELCOME_TEXT = """Welcome to P2L!\n
 P2L is a tool that allows you to convert LaTeX tables to Pandas DataFrames and vice versa.\n
@@ -140,21 +133,6 @@ class DataTableScreen(Screen):
             key = self.app.table.col_index_to_str(col)
             name = self.app.table.col_index_to_str(col)
 
-            # if self.app.table.mode == Axis.COLUMN:
-            #     # get the ordering of the columns
-            #     order = (
-            #         self.app.table.overrides[Axis.COLUMN]
-            #         .get(col, {})
-            #         .get("order", self.app.table.default_rules["order"])
-            #     )
-            #     match order:
-            #         case Order.MINIMUM:
-            #             name = f"{name} (v)"
-            #         case Order.NEUTRAL:
-            #             name = f"{name} (-)"
-            #         case Order.MAXIMUM:
-            #             name = f"{name} (^)"
-
             self.data_table.add_column(label=name, key=key)
             column_keys.append(key)
 
@@ -163,19 +141,6 @@ class DataTableScreen(Screen):
             row_data = self.app.table.display_dataframe.loc[row]
             key = self.app.table.row_index_to_str(row)
             name = self.app.table.row_index_to_str(row)
-            # if self.app.table.mode == Axis.ROW:
-            #     order = (
-            #         self.app.table.overrides[Axis.ROW]
-            #         .get(name, {})
-            #         .get("order", self.app.table.default_rules["order"])
-            #     )
-            #     match order:
-            #         case Order.MINIMUM:
-            #             name = f"{name} (v)"
-            #         case Order.NEUTRAL:
-            #             name = f"{name} (-)"
-            #         case Order.MAXIMUM:
-            #             name = f"{name} (^)"
 
             self.data_table.add_row(
                 *[str(value) for value in row_data], key=key, label=name
@@ -205,9 +170,10 @@ class DataTableScreen(Screen):
             if self.app.table.mode == Axis.COLUMN:
                 order = (
                     self.app.table.overrides[Axis.COLUMN]
-                    .get(col, {})
-                    .get("order", self.app.table.default_rules["order"])
+                    .get(col, Rule(**{})).order
                 )
+                if order is None:
+                    order = self.app.table.default_rule.order
                 match order:
                     case Order.MINIMUM:
                         label = f"{label} (v)"
@@ -227,12 +193,13 @@ class DataTableScreen(Screen):
             if self.app.table.mode == Axis.ROW:
                 order = (
                     self.app.table.overrides[Axis.ROW]
-                    .get(row, {})
-                    .get("order", self.app.table.default_rules["order"])
+                    .get(row, Rule(**{})).order
                 )
+                if order is None:
+                    order = self.app.table.default_rule.order
                 match order:
                     case Order.MINIMUM:
-                        label = f"{label} (v)"
+                        label = f"(v) {label}"
                     case Order.NEUTRAL:
                         label = f"{label} (-)"
                     case Order.MAXIMUM:
@@ -404,40 +371,18 @@ class RulesInputScreen(ModalScreen):
     async def handle_submit_highlighting(self) -> None:
         """Handle submission of highlighting rules."""
         try:
-            new_rules = json.loads(self.highlight_input_area.text)
-            new_rules = self.check_input_highlighting(new_rules)
-            if "order" in new_rules:
-                new_rules["order"] = Order(new_rules["order"])
-
-            self.dismiss(new_rules)
+            new_rules_dict = json.loads(self.highlight_input_area.text)
+            # Filter out invalid keys
+            new_rules_dict, pop_keys = filter_rule_keys(new_rules_dict)
+            if pop_keys:
+                self.status_bar.update(f"Invalid keys {pop_keys} were removed.")
+            # Create a new Rule instance
+            new_rule = Rule(**new_rules_dict)
+            self.dismiss(new_rule)
         except json.JSONDecodeError:
             self.status_bar.update("Invalid JSON input. Please try again.")
-
-    def check_input_highlighting(self, rules: dict[str, Any]) -> RULES:
-        """Check the input highlighting rules for validity."""
-
-        # Filter out the keys that are not available in the rules dictionary
-        rules, pop_keys = filter_rule_keys(rules)
-        if pop_keys:
-            self.status_bar.update(f"Invalid keys {pop_keys}. They have been removed.")
-
-        # Filter out the keys that don't have matching types
-        pop_keys = []
-        for key, value in rules.items():
-            if key not in AVAILABLE_RULES:
-                continue
-            rule_type = AVAILABLE_RULES[key]
-
-            if not is_instance_of(value, rule_type):
-                self.status_bar.update(
-                    f"Invalid value '{value}' for key '{key}'. Expected '{rule_type}' . It has been removed."
-                )
-                pop_keys.append(key)
-
-        for key in pop_keys:
-            rules.pop(key)
-
-        return rules
+        except TypeError as e:
+            self.status_bar.update(f"Invalid input: {e}")
 
 
 class HeaderIndexSelectionScreen(ModalScreen):
@@ -604,18 +549,18 @@ class LTEApp(App):
         """Show the input screen for editing the default highlighting rules."""
         info_text = "Enter the default highlighting rules in JSON format."
 
-        def update_highlighting(highlighting: dict[str, Any] | None) -> None:
-            if highlighting is not None:
-                self.table.default_rules = highlighting
-                self.data_table_screen.update_table()
-                self.data_table_screen.status_bar.update(
-                    "Default Highlighting rules updated."
-                )
+        def update_highlighting(new_rule: Rule | None) -> None:
+            if new_rule is not None:
+                self.table.default_rule = new_rule
+                self.table.reset_formatting_rules()
             else:
-                self.data_table_screen.status_bar.update("Invalid highlighting rules.")
+                self.data_table_screen.status_bar.update(
+                    "No changes were made to the default rules."
+                )
 
+        current_rules_json = json.dumps(self.table.default_rule.__dict__, indent=4)
         self.push_screen(
-            RulesInputScreen(json.dumps(self.table.default_rules, indent=4), info_text),
+            RulesInputScreen(current_rules_json, info_text),
             update_highlighting,
         )
         self.data_table_screen.update_table()
@@ -643,9 +588,9 @@ class LTEApp(App):
             f"Enter the highlighting rules for column '{column_name}' in JSON format."
         )
 
-        def update_highlighting(highlighting: dict[str, Any] | None) -> None:
-            if highlighting is not None:
-                self.table.overrides[Axis.COLUMN][column_name] = highlighting
+        def update_highlighting(new_rule: Rule | None) -> None:
+            if new_rule is not None:
+                self.table.overrides[Axis.COLUMN][column_name] = new_rule
                 self.data_table_screen.update_table()
                 self.data_table_screen.status_bar.update(
                     f"Highlighting rules updated for '{column_name}'."
@@ -654,10 +599,10 @@ class LTEApp(App):
                 self.data_table_screen.status_bar.update("Invalid highlighting rules.")
 
         self.current_highlighting_target = column_name
-        column_rules = self.table.overrides[Axis.COLUMN].get(column_name, {})
+        column_rules = self.table.overrides[Axis.COLUMN].get(column_name, Rule(**{}))
 
         self.push_screen(
-            RulesInputScreen(json.dumps(column_rules, indent=4), info_text),
+            RulesInputScreen(json.dumps(column_rules.__dict__, indent=4), info_text),
             update_highlighting,
         )
         self.data_table_screen.update_table()
@@ -675,9 +620,9 @@ class LTEApp(App):
 
         info_text = f"Enter the highlighting rules for row '{row_name}' in JSON format."
 
-        def update_highlighting(highlighting: dict[str, Any] | None) -> None:
-            if highlighting is not None:
-                self.table.overrides[Axis.ROW][row_name] = highlighting
+        def update_highlighting(new_rule: Rule | None) -> None:
+            if new_rule is not None:
+                self.table.overrides[Axis.ROW][row_name] = new_rule
                 self.data_table_screen.update_table()
                 self.data_table_screen.status_bar.update(
                     f"Highlighting rules updated for '{row_name}'."
@@ -686,10 +631,10 @@ class LTEApp(App):
                 self.data_table_screen.status_bar.update("Invalid highlighting rules.")
 
         self.current_highlighting_target = row_name
-        row_rules = self.table.overrides[Axis.ROW].get(row_name, {})
+        row_rules = self.table.overrides[Axis.ROW].get(row_name, Rule(**{}))
 
         self.push_screen(
-            RulesInputScreen(json.dumps(row_rules, indent=4), info_text),
+            RulesInputScreen(json.dumps(row_rules.__dict__, indent=4), info_text),
             update_highlighting,
         )
         self.data_table_screen.update_table()

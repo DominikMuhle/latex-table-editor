@@ -1,23 +1,17 @@
+import warnings
 from copy import copy
 from typing import Any
-import warnings
 
 import pandas as pd
 
-from latex_table_editor.utils import Axis, Order
+from latex_table_editor.utils import DEFAULT_RULES, Axis, Order, Rule
 
-DEFAULT_RULES = {
-    "order": Order.NEUTRAL,
-    "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
-    "default": "%s",
-    "precision": "%.2f",
-}
-
+# Remove DEFAULT_RULES definition here
 
 def highlight_extrema(
     data: str | float | int,
     extrema: list[float | int],
-    highlights: str,
+    highlights: list[str],
     default: str,
     precision: str = "%.3f",
 ) -> str:
@@ -38,14 +32,11 @@ def highlight_extrema(
 def column_highlighting(
     df_column: pd.Series,
     indices: list[str],
-    order: Order,
-    highlighting: list[str],
-    default: str,
-    precision: str,
+    rule: Rule,
 ) -> pd.Series:
-    num_highlights = len(highlighting)
+    num_highlights = len(rule.highlighting)
     df_column_numeric = pd.to_numeric(df_column, errors="coerce")
-    match order:
+    match rule.order:
         case Order.MINIMUM:
             extrema = df_column_numeric[indices].nsmallest(num_highlights)
             extrema = extrema.tolist()
@@ -60,7 +51,7 @@ def column_highlighting(
         df_column[indices]
         .apply(
             lambda data: highlight_extrema(
-                data, extrema, highlighting, default, precision
+                data, extrema, rule.highlighting, rule.default, rule.precision
             )
         )
         .astype(str)
@@ -71,7 +62,7 @@ def column_highlighting(
     highlighted_column[ignore_indices] = (
         df_column[ignore_indices]
         .apply(
-            lambda data: highlight_extrema(data, extrema, [default], default, precision)
+            lambda data: highlight_extrema(data, extrema, [rule.default], rule.default, rule.precision)
         )
         .astype(str)
     )
@@ -82,23 +73,19 @@ def column_highlighting(
 def table_highlighting(
     dataframe: pd.DataFrame,
     axis: Axis,
-    default_rules: dict[str, Any],
-    column_override_rules: dict[str, dict[str, Any]] = {},
+    default_rule: Rule,
+    override_rules: dict[str, Rule] = {},
     ignore: list[str] | None = None,
 ) -> pd.DataFrame:
+    # replace the missing values in the default rule with the values from DEFAULT_RULES
+    default_rule = copy(default_rule)
+    for key, value in DEFAULT_RULES.__dict__.items():
+        if getattr(default_rule, key) is None:
+            setattr(default_rule, key, value)
+
     if axis == Axis.ROW:
         # transpose the dataframe to make the row operations column operations
         dataframe = dataframe.T
-
-    missing_keys = []
-    for key in DEFAULT_RULES.keys():
-        if key not in default_rules:
-            missing_keys.append(key)
-            default_rules[key] = DEFAULT_RULES[key]
-    if missing_keys:
-        warnings.warn(
-            f"The following keys were missing in the default highlighting: {missing_keys}"
-        )
 
     if ignore is None:
         ignore = []
@@ -108,17 +95,14 @@ def table_highlighting(
     remaining_indices = [idx for idx in dataframe.index if idx not in ignore]
 
     for name in dataframe.columns:
-        if name in column_override_rules:
-            rules = column_override_rules[name]
-        else:
-            rules = copy(default_rules)
-        order = rules.get("order", default_rules["order"])
-        highlighting = rules.get("highlighting", default_rules["highlighting"])
-        default = rules.get("default", default_rules["default"])
-        precision = rules.get("precision", default_rules["precision"])
+        rule = copy(override_rules.get(name, default_rule))
+        # replace the missing values in the override rule with the values from the default rule
+        for key, value in default_rule.__dict__.items():
+            if getattr(rule, key) is None:
+                setattr(rule, key, value)
 
         dataframe[name] = column_highlighting(
-            dataframe[name], remaining_indices, order, highlighting, default, precision
+            dataframe[name], remaining_indices, rule
         )
 
     if axis == Axis.ROW:
