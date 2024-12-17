@@ -9,12 +9,24 @@ from textual.binding import Binding
 from textual.containers import Container, Grid
 from textual.events import Click
 from textual.screen import ModalScreen, Screen
-from textual.widgets import DataTable, Footer, Input, Static, TextArea
+from textual.widgets import (
+    DataTable,
+    Footer,
+    Input,
+    Label,
+    ListItem,
+    ListView,
+    Static,
+    TextArea,
+)
 
 from latex_table_editor.conversion import (
     extract_numbers_from_dataframe,
     infer_headers_and_indices,
+    json_to_dataframe,
     latex_table_to_dataframe,
+    string_to_dataframe,
+    yaml_to_dataframe,
 )
 from latex_table_editor.table import Table
 from latex_table_editor.utils import (
@@ -286,11 +298,13 @@ class InputScreen(ModalScreen):
 
     BINDINGS = [
         Binding("ctrl+s", "submit", "Submit"),
+        Binding("ctrl+l", "open_mode_selection", "Select Mode"),
     ]
 
     def __init__(self):
         super().__init__()
         self.app: LTEApp
+        self.mode = 'latex'  # Default input mode
 
     def compose(self) -> ComposeResult:
         self.info_text = Static("Enter the table data in LaTeX format.", id="info")
@@ -305,15 +319,50 @@ class InputScreen(ModalScreen):
     async def on_mount(self) -> None:
         """Focus on the input area when the screen is mounted."""
         self.input_area.focus()
+        self.update_info_text()
+
+    async def action_open_mode_selection(self) -> None:
+        """Open the mode selection menu."""
+
+        def on_mode_selected(mode: str) -> None:
+            self.mode = mode
+            self.update_info_text()
+            self.app.pop_screen()
+
+        await self.app.push_screen(ModeSelectionScreen(on_mode_selected))
+
+    def update_info_text(self) -> None:
+        """Update the info text based on the current input mode."""
+        mode_names = {
+            'latex': 'LaTeX',
+            'string': 'String',
+            'json': 'JSON',
+            'yaml': 'YAML',
+        }
+        self.info_text.update(f"Enter the table data in {mode_names[self.mode]} format.")
 
     async def action_submit(self) -> None:
         """Handle submission of input data."""
         await self.handle_submit()
 
     async def handle_submit(self) -> None:
-        """Handle submission of input data."""
-        # app = self.app
-        self.dismiss(latex_table_to_dataframe(self.input_area.text))
+        """Handle submission of input data based on the current mode."""
+        input_text = self.input_area.text
+        try:
+            if self.mode == 'latex':
+                dataframe = latex_table_to_dataframe(input_text)
+            elif self.mode == 'string':
+                dataframe = string_to_dataframe(input_text)
+            elif self.mode == 'json':
+                dataframe = json_to_dataframe(input_text)
+            elif self.mode == 'yaml':
+                dataframe = yaml_to_dataframe(input_text)
+            else:
+                self.status_bar.update("Invalid input mode.")
+                return
+            self.dismiss(dataframe)
+        except Exception as e:
+            self.status_bar.update(f"Invalid input: {e}")
 
 
 class RulesInputScreen(ModalScreen):
@@ -859,6 +908,34 @@ class LTEApp(App):
             await self.disable_selection_mode()
 
         self.data_table_screen.update_table()
+
+
+class ModeSelectionScreen(ModalScreen):
+    """Screen for selecting the input mode."""
+
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def compose(self) -> ComposeResult:
+        self.title = Static("Select Input Mode:", id="mode_select_title")
+        options = ["LaTeX", "String", "JSON", "YAML"]
+        self.option_list = ListView(
+            *[ListItem(Label(option), id=option.lower()) for option in options],
+            id="mode_options",
+        )
+        # yield self.title
+        yield self.option_list
+
+    async def on_mount(self) -> None:
+        """Focus on the options list when the screen is mounted."""
+        self.option_list.focus()
+
+    async def on_list_view_selected(self, event: ListView.Selected) -> None:
+        """Handle selection from the mode list."""
+        mode = event.item.id
+        self.callback(mode)
+        await self.dismiss()
 
 
 if __name__ == "__main__":

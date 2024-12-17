@@ -1,6 +1,9 @@
+import json
 import re
+from io import StringIO
 
 import pandas as pd
+import yaml
 
 LATEX_ENVIRONMENT_LINES = [
     r"\\begin\{tabular\}",
@@ -169,3 +172,56 @@ def infer_headers_and_indices(df: pd.DataFrame) -> tuple[int, int]:
         index_indices.append(idx)
 
     return len(header_indices), len(index_indices)
+
+def string_to_dataframe(input_str: str) -> pd.DataFrame:
+    """
+    Convert a string representation of a DataFrame into an actual DataFrame.
+    Assumes the string is in CSV format.
+    """
+    df = pd.read_csv(StringIO(input_str))
+    df = df.fillna("")
+    return df
+
+def dict_to_dataframe(input_dict: dict) -> pd.DataFrame:
+    """
+    Convert a dictionary representation of a DataFrame into an actual DataFrame.
+    """
+    columns = input_dict["columns"]
+    index = input_dict["index"]
+    data = input_dict["data"]
+
+    num_rows = len(data)
+    num_columns = len(data[0])
+
+    # check if columns is either a list of strings or a list of lists of strings
+    if not all(isinstance(col, list) for col in columns):
+        columns = [columns]
+    else:
+        # check if we need to invert the columns
+        if len(columns) == num_columns:
+            columns = list(zip(*columns))
+
+    # check if index is either a list of strings or a list of lists of strings
+    if not all(isinstance(row, list) for row in index):
+        index = [index]
+    else:
+        # check if we need to invert the index
+        if len(index) == num_rows:
+            index = list(zip(*index))
+
+    return pd.DataFrame(data=data, columns=columns, index=index)
+
+def json_to_dataframe(input_str: str) -> pd.DataFrame:
+    """
+    Convert a JSON string into a pandas DataFrame.
+    """
+    input_dict = json.loads(input_str)
+    return dict_to_dataframe(input_dict)
+
+
+def yaml_to_dataframe(input_str: str) -> pd.DataFrame:
+    """
+    Convert a YAML string into a pandas DataFrame.
+    """
+    input_dict = yaml.safe_load(input_str)
+    return dict_to_dataframe(input_dict)

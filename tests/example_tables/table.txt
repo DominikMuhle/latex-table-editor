@@ -1,0 +1,12 @@
+\begin{tabular}{llll}
+\toprule
+% & & & \multicolumn{2}{c}{Downward Columns} \\
+& & Metric1 & Metric2 & Metric3 \\
+\midrule
+\multirow{3}{*}{Old} & Method 1 & 1.000 & 5.000 & 1.00 \\ % this is an unnecessary comment
+ & Method 2 & - & 4.000 & 3.00 \\ 
+ & Method 3 & 3.000 & 3.000 & 5.00 \\
+\multirow{2}{*}{New} & Method 4 & 4.000 & \underline{2.000} & 7.00 \\ 
+ & Method 5 & 5.000 & 1.000 & 9.00 \\                                               
+\bottomrule                                   
+\end{tabular} 
