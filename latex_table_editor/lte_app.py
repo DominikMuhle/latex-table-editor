@@ -1,475 +1,25 @@
 import json
-from pathlib import Path
-from typing import Any
 
 import pandas as pd
-from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Grid
 from textual.events import Click
-from textual.screen import ModalScreen, Screen
-from textual.widgets import (
-    DataTable,
-    Footer,
-    Input,
-    Label,
-    ListItem,
-    ListView,
-    Static,
-    TextArea,
-)
+from textual.widgets import DataTable
 
 from latex_table_editor.conversion import (
     extract_numbers_from_dataframe,
     infer_headers_and_indices,
-    json_to_dataframe,
-    latex_table_to_dataframe,
-    string_to_dataframe,
-    yaml_to_dataframe,
+)
+from latex_table_editor.screens import (
+    DataTableScreen,
+    HeaderIndexSelectionScreen,
+    InputScreen,
+    LATeXOutputScreen,
+    RulesInputScreen,
+    WelcomeScreen,
 )
 from latex_table_editor.table import Table
-from latex_table_editor.utils import Axis, Order, Rule, filter_rule_keys
-
-WELCOME_TEXT = """Welcome to P2L!\n
-P2L is a tool that allows you to convert LaTeX tables to Pandas DataFrames and vice versa.\n
-It also provides a way to highlight the table data based on certain rules.\n
-Press 'N' to start a new input.\n
-"""
-
-
-class WelcomeScreen(ModalScreen):
-    """Welcome screen of the application."""
-
-    BINDINGS = [
-        Binding("N", "show_input", "New Input"),
-    ]
-
-    def compose(self) -> ComposeResult:
-        self.app: LTEApp
-        self.welcome_text = Static(WELCOME_TEXT, id="welcome")
-
-        yield Container(self.welcome_text, id="main")
-
-    async def action_show_input(self) -> None:
-        """Show the input screen for table input."""
-        self.dismiss()
-        await self.app.action_show_input()
-
-
-class LATeXOutputScreen(ModalScreen):
-    """Screen for LaTeX output."""
-
-    BINDINGS = [
-        Binding("ctrl+r", "dismiss", "Return to DataTable"),
-        Binding("ctrl+s", "save_to_file", "Save to File"),
-    ]
-
-    def compose(self) -> ComposeResult:
-        self.app: LTEApp
-        self.latex_output_area = TextArea(read_only=True, id="latex_output")
-        self.status_bar = Static("Status: Ready", id="status")
-        self.input = Input(placeholder="Enter the file name", id="input")
-        self.footer = Footer(id="footer")
-
-        yield Container(self.latex_output_area, self.input, id="main")
-        yield self.status_bar
-        yield self.footer
-
-    async def on_mount(self) -> None:
-        """Focus on the LaTeX output area when the screen is mounted."""
-        self.latex_output_area.focus()
-
-        self.app.table.highlight_table()
-
-        self.latex_output_area.text = self.app.table.display_dataframe.to_latex()
-        # focus on the input area
-        self.input.focus()
-
-    async def action_dismiss(self) -> None:
-        """Dismiss the LaTeX output screen."""
-        await self.dismiss()
-
-    async def action_save_to_file(self) -> None:
-        """Save the LaTeX output to a file."""
-        # check if the input is empty
-        if not self.input.value:
-            self.status_bar.update("Please enter a file name.")
-            return
-
-        file_name = Path(self.input.value)
-        # check if parent directory exists
-        if not file_name.parent.exists():
-            self.status_bar.update("Parent directory does not exist.")
-            return
-
-        with open(file_name, "w") as file:
-            file.write(self.latex_output_area.text)
-        self.status_bar.update(f"Saved LaTeX output to '{file_name}'.")
-
-
-class DataTableScreen(Screen):
-    """Screen displaying the DataTable."""
-
-    def compose(self) -> ComposeResult:
-        self.app: LTEApp
-        self.data_table = DataTable(id="data_table")
-        self.status_bar = Static("Status: Ready", id="status")
-        self.footer = Footer(id="footer")
-
-        yield Container(self.data_table, id="main")
-        yield self.status_bar
-        yield self.footer
-
-    def draw_table(self) -> None:
-        self.app.table.highlight_table()
-
-        self.data_table.clear(columns=True)
-        # set the header height to the number of header rows in the dataframe
-        self.data_table.header_height = self.app.table.dataframe.columns.nlevels
-
-        column_keys = []
-        for col in self.app.table.display_dataframe.columns:
-            key = self.app.table.col_index_to_str(col)
-            name = self.app.table.col_index_to_str(col)
-
-            self.data_table.add_column(label=name, key=key)
-            column_keys.append(key)
-
-        row_keys = []
-        for row in self.app.table.display_dataframe.index:
-            row_data = self.app.table.display_dataframe.loc[row]
-            key = self.app.table.row_index_to_str(row)
-            name = self.app.table.row_index_to_str(row)
-
-            self.data_table.add_row(
-                *[str(value) for value in row_data], key=key, label=name
-            )
-            row_keys.append(key)
-
-        self.update_table()
-        self.refresh()
-
-    def update_table(self) -> None:
-        """Update the DataTable without recreating it."""
-        self.app.table.highlight_table()
-
-        column_keys = [
-            self.app.table.col_index_to_str(col)
-            for col in self.app.table.display_dataframe.columns
-        ]
-        row_keys = [
-            self.app.table.row_index_to_str(row)
-            for row in self.app.table.display_dataframe.index
-        ]
-
-        # # Update the table column names
-        for col in self.app.table.display_dataframe.columns:
-            label = self.app.table.col_index_to_str(col)
-            dt_column = self.data_table.columns[label]
-            if self.app.table.mode == Axis.COLUMN:
-                order = (
-                    self.app.table.overrides[Axis.COLUMN]
-                    .get(col, Rule(**{})).order
-                )
-                if order is None:
-                    order = self.app.table.default_rule.order
-                match order:
-                    case Order.MINIMUM:
-                        label = f"{label} (v)"
-                    case Order.NEUTRAL:
-                        label = f"{label} (-)"
-                    case Order.MAXIMUM:
-                        label = f"{label} (^)"
-
-            dt_column.label = (
-                Text.from_markup(label) if isinstance(label, str) else label
-            )
-
-        # Update the table row names
-        for row in self.app.table.display_dataframe.index:
-            label = self.app.table.row_index_to_str(row)
-            dt_row = self.data_table.rows[label]
-            if self.app.table.mode == Axis.ROW:
-                order = (
-                    self.app.table.overrides[Axis.ROW]
-                    .get(row, Rule(**{})).order
-                )
-                if order is None:
-                    order = self.app.table.default_rule.order
-                match order:
-                    case Order.MINIMUM:
-                        label = f"(v) {label}"
-                    case Order.NEUTRAL:
-                        label = f"{label} (-)"
-                    case Order.MAXIMUM:
-                        label = f"{label} (^)"
-
-            dt_row.label = Text.from_markup(label) if isinstance(label, str) else label
-
-        for row in self.app.table.display_dataframe.index:
-            row_key = self.app.table.row_index_to_str(row)
-            for col in self.app.table.display_dataframe.columns:
-                col_key = self.app.table.col_index_to_str(col)
-                cell_content = self.app.table.display_dataframe[col][row]
-                self.data_table.update_cell(
-                    row_key=row_key,
-                    column_key=col_key,
-                    value=cell_content,
-                    update_width=True,
-                )
-
-        # Apply any necessary styles or highlights
-        match self.app.table.mode:
-            case Axis.ROW:
-                for col_key in self.app.table.skip[Axis.COLUMN]:
-                    col_key = self.app.table.col_index_to_str(col_key)
-                    for row_key in row_keys:
-                        cell_content = self.data_table.get_cell(
-                            row_key=row_key, column_key=col_key
-                        )
-                        self.data_table.update_cell(
-                            row_key=row_key,
-                            column_key=col_key,
-                            value=f"[grey54]{cell_content}[/grey54]",
-                            update_width=True,
-                        )
-            case Axis.COLUMN:
-                for row_key in self.app.table.skip[Axis.ROW]:
-                    row_key = self.app.table.row_index_to_str(row_key)
-                    for col_key in column_keys:
-                        cell_content = self.data_table.get_cell(
-                            row_key=row_key, column_key=col_key
-                        )
-                        self.data_table.update_cell(
-                            row_key=row_key,
-                            column_key=col_key,
-                            value=f"[grey54]{cell_content}[/grey54]",
-                            update_width=True,
-                        )
-
-        self.refresh()
-        # self.data_table._update_column_widths()
-        self.data_table.show_row_labels = False
-        self.refresh()
-        self.data_table.show_row_labels = True
-        self.refresh()
-
-    async def on_mount(self) -> None:
-        """Initialize the DataTable with data."""
-        self.data_table.cursor_type = "cell"
-
-
-class InputScreen(ModalScreen):
-    """Screen for table input."""
-
-    BINDINGS = [
-        Binding("ctrl+s", "submit", "Submit"),
-        Binding("ctrl+l", "open_mode_selection", "Select Mode"),
-    ]
-
-    def __init__(self):
-        super().__init__()
-        self.app: LTEApp
-        self.mode = 'latex'  # Default input mode
-
-    def compose(self) -> ComposeResult:
-        self.info_text = Static("Enter the table data in LaTeX format.", id="info")
-        self.input_area = TextArea(id="input")
-        self.status_bar = Static("Status: Ready", id="status")
-        self.footer = Footer(id="footer")
-
-        yield Grid(self.info_text, self.input_area, id="grid_input")
-        yield self.status_bar
-        yield self.footer
-
-    async def on_mount(self) -> None:
-        """Focus on the input area when the screen is mounted."""
-        self.input_area.focus()
-        self.update_info_text()
-
-    async def action_open_mode_selection(self) -> None:
-        """Open the mode selection menu."""
-
-        def on_mode_selected(mode: str) -> None:
-            self.mode = mode
-            self.update_info_text()
-            self.app.pop_screen()
-
-        await self.app.push_screen(ModeSelectionScreen(on_mode_selected))
-
-    def update_info_text(self) -> None:
-        """Update the info text based on the current input mode."""
-        mode_names = {
-            'latex': 'LaTeX',
-            'string': 'String',
-            'json': 'JSON',
-            'yaml': 'YAML',
-        }
-        self.info_text.update(f"Enter the table data in {mode_names[self.mode]} format.")
-
-    async def action_submit(self) -> None:
-        """Handle submission of input data."""
-        await self.handle_submit()
-
-    async def handle_submit(self) -> None:
-        """Handle submission of input data based on the current mode."""
-        input_text = self.input_area.text
-        try:
-            if self.mode == 'latex':
-                dataframe = latex_table_to_dataframe(input_text)
-            elif self.mode == 'string':
-                dataframe = string_to_dataframe(input_text)
-            elif self.mode == 'json':
-                dataframe = json_to_dataframe(input_text)
-            elif self.mode == 'yaml':
-                dataframe = yaml_to_dataframe(input_text)
-            else:
-                self.status_bar.update("Invalid input mode.")
-                return
-            self.dismiss(dataframe)
-        except Exception as e:
-            self.status_bar.update(f"Invalid input: {e}")
-
-
-class RulesInputScreen(ModalScreen):
-    """Screen for default or column highlighting input."""
-
-    BINDINGS = [
-        Binding("ctrl+s", "submit", "Submit"),
-    ]
-
-    def __init__(
-        self,
-        rules: str,
-        info_text: str = "Enter the highlighting rules in JSON format.",
-    ):
-        super().__init__()
-        self.rules = rules
-        self.info_text = info_text
-
-    def compose(self) -> ComposeResult:
-        self.app: LTEApp
-        self.info_text = Static(str(self.info_text), id="info")
-        self.highlight_input_area = TextArea(id="highlight_input")
-        self.highlight_input_area.text = self.rules
-        self.status_bar = Static("Status: Ready", id="status")
-        self.footer = Footer(id="footer")
-
-        yield Grid(self.info_text, self.highlight_input_area, id="grid_input")
-        yield self.status_bar
-        yield self.footer
-
-    async def on_mount(self) -> None:
-        """Focus on the highlighting input area when the screen is mounted."""
-        self.highlight_input_area.focus()
-
-    async def action_submit(self) -> None:
-        """Handle submission of highlighting rules."""
-        await self.handle_submit_highlighting()
-
-    async def handle_submit_highlighting(self) -> None:
-        """Handle submission of highlighting rules."""
-        try:
-            new_rules_dict = json.loads(self.highlight_input_area.text)
-            # Filter out invalid keys
-            new_rules_dict, pop_keys = filter_rule_keys(new_rules_dict)
-            if pop_keys:
-                self.status_bar.update(f"Invalid keys {pop_keys} were removed.")
-            # Create a new Rule instance
-            new_rule = Rule(**new_rules_dict)
-            self.dismiss(new_rule)
-        except json.JSONDecodeError:
-            self.status_bar.update("Invalid JSON input. Please try again.")
-        except TypeError as e:
-            self.status_bar.update(f"Invalid input: {e}")
-
-
-class HeaderIndexSelectionScreen(ModalScreen):
-    """Screen to adjust header rows and index columns."""
-
-    BINDINGS = [
-        Binding("k", "increase_num_header_rows", "Increase Header Rows"),
-        Binding("i", "decrease_num_header_rows", "Decrease Header Rows"),
-        Binding("l", "increase_num_index_columns", "Increase Index Columns"),
-        Binding("j", "decrease_num_index_columns", "Decrease Index Columns"),
-        Binding("escape", "exit", "Exit"),
-    ]
-
-    def compose(self) -> ComposeResult:
-        self.app: LTEApp
-        self.data_table = DataTable(id="str_data_table")
-        self.status_bar = Static("Use arrow keys to adjust headers and indices.", id="status")
-        self.footer = Footer()
-
-        yield Container(self.data_table, id="main")
-        yield self.status_bar
-        yield self.footer
-
-    async def on_mount(self) -> None:
-        """Initialize the DataTable with str_dataframe."""
-        self.draw_table()
-
-    def draw_table(self) -> None:
-        """Draw the DataTable with str_dataframe."""
-        self.data_table.clear(columns=True)
-        df = self.app.table.str_dataframe
-
-        # Add columns
-        for col in df.columns:
-            self.data_table.add_column(str(col), key=str(col))
-
-        # Add rows
-        for index, row in df.iterrows():
-            self.data_table.add_row(*[str(value) for value in row], key=str(index))
-
-        self.update_table()
-
-    def update_table(self) -> None:
-        """Update the DataTable to display str_dataframe with highlights."""
-        df = self.app.table.str_dataframe
-
-        for index, row in df.iterrows():
-            for col, value in row.items():
-                value = str(value)
-                if index < self.app.table.num_header_rows:
-                    value = f"[red]{value}[/red]"
-                if col in df.columns[: self.app.table.num_index_columns]:
-                    value = f"[red]{value}[/red]"
-
-                self.data_table.update_cell(
-                    row_key=str(index), column_key=str(col), value=value
-                )
-
-    async def action_increase_num_header_rows(self) -> None:
-        """Increase the number of header rows."""
-        self.app.table.num_header_rows += 1
-        self.app.table.update_from_str_dataframe()
-        self.update_table()
-
-    async def action_decrease_num_header_rows(self) -> None:
-        """Decrease the number of header rows."""
-        if self.app.table.num_header_rows > 0:
-            self.app.table.num_header_rows -= 1
-            self.app.table.update_from_str_dataframe()
-            self.update_table()
-
-    async def action_increase_num_index_columns(self) -> None:
-        """Increase the number of index columns."""
-        self.app.table.num_index_columns += 1
-        self.app.table.update_from_str_dataframe()
-        self.update_table()
-
-    async def action_decrease_num_index_columns(self) -> None:
-        """Decrease the number of index columns."""
-        if self.app.table.num_index_columns > 0:
-            self.app.table.num_index_columns -= 1
-            self.app.table.update_from_str_dataframe()
-            self.update_table()
-
-    async def action_exit(self) -> None:
-        """Exit the screen."""
-        self.dismiss()
+from latex_table_editor.utils import Axis, Rule
 
 
 class LTEApp(App):
@@ -503,9 +53,9 @@ class LTEApp(App):
     def compose(self) -> ComposeResult:
         yield from super().compose()
         # Register Screens
-        self.data_table_screen = DataTableScreen()
+        self.data_table_screen = DataTableScreen(self.table)
         self.push_screen(self.data_table_screen)
-        self.push_screen(WelcomeScreen())
+        self.push_screen(WelcomeScreen(on_new_input=self.action_show_input))
 
     async def reset_screen(self) -> None:
         """Reset the screen to the DataTable."""
@@ -534,7 +84,7 @@ class LTEApp(App):
     async def action_show_latex_output(self) -> None:
         """Show the LaTeX output screen."""
 
-        self.push_screen(LATeXOutputScreen())
+        self.push_screen(LATeXOutputScreen(self.table))
         self.data_table_screen.update_table()
 
     async def action_show_header_index_selection(self) -> None:
@@ -543,7 +93,7 @@ class LTEApp(App):
             self.table.reset_formatting_rules()
             self.data_table_screen.draw_table()
 
-        self.push_screen(HeaderIndexSelectionScreen(), update_table)
+        self.push_screen(HeaderIndexSelectionScreen(self.table), update_table)
 
     async def action_show_edit_default_rules(self) -> None:
         """Show the input screen for editing the default highlighting rules."""
@@ -560,8 +110,7 @@ class LTEApp(App):
 
         current_rules_json = json.dumps(self.table.default_rule.__dict__, indent=4)
         self.push_screen(
-            RulesInputScreen(current_rules_json, info_text),
-            update_highlighting,
+            RulesInputScreen(current_rules_json, info_text, update_highlighting),
         )
         self.data_table_screen.update_table()
 
@@ -602,8 +151,7 @@ class LTEApp(App):
         column_rules = self.table.overrides[Axis.COLUMN].get(column_name, Rule(**{}))
 
         self.push_screen(
-            RulesInputScreen(json.dumps(column_rules.__dict__, indent=4), info_text),
-            update_highlighting,
+            RulesInputScreen(json.dumps(column_rules.__dict__, indent=4), info_text, update_highlighting),
         )
         self.data_table_screen.update_table()
 
@@ -634,8 +182,7 @@ class LTEApp(App):
         row_rules = self.table.overrides[Axis.ROW].get(row_name, Rule(**{}))
 
         self.push_screen(
-            RulesInputScreen(json.dumps(row_rules.__dict__, indent=4), info_text),
-            update_highlighting,
+            RulesInputScreen(json.dumps(row_rules.__dict__, indent=4), info_text, update_highlighting),
         )
         self.data_table_screen.update_table()
 
@@ -854,33 +401,6 @@ class LTEApp(App):
 
         self.data_table_screen.update_table()
 
-
-class ModeSelectionScreen(ModalScreen):
-    """Screen for selecting the input mode."""
-
-    def __init__(self, callback):
-        super().__init__()
-        self.callback = callback
-
-    def compose(self) -> ComposeResult:
-        self.title = Static("Select Input Mode:", id="mode_select_title")
-        options = ["LaTeX", "String", "JSON", "YAML"]
-        self.option_list = ListView(
-            *[ListItem(Label(option), id=option.lower()) for option in options],
-            id="mode_options",
-        )
-        # yield self.title
-        yield self.option_list
-
-    async def on_mount(self) -> None:
-        """Focus on the options list when the screen is mounted."""
-        self.option_list.focus()
-
-    async def on_list_view_selected(self, event: ListView.Selected) -> None:
-        """Handle selection from the mode list."""
-        mode = event.item.id
-        self.callback(mode)
-        await self.dismiss()
 
 
 if __name__ == "__main__":

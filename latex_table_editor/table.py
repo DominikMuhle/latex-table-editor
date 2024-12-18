@@ -132,7 +132,7 @@ class Table:
             return False
         significant_digits = int(matching.group(1))
 
-        self.overrides[axis][name]["precision"] = f"%.{significant_digits + 1}f"
+        self.overrides[axis][name].precision = f"%.{significant_digits + 1}f"
         return True
 
     def decrease_precision(self, axis: Axis, name: str) -> bool:
@@ -150,7 +150,7 @@ class Table:
         if significant_digits == 0:
             return False
 
-        self.overrides[axis][name]["precision"] = f"%.{significant_digits - 1}f"
+        self.overrides[axis][name].precision = f"%.{significant_digits - 1}f"
         return True
 
     def swap_columns(self, col1: tuple[str] | str, col2: tuple[str] | str) -> bool:
