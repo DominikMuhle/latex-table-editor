@@ -1,8 +1,7 @@
 import pandas as pd
 import pytest
-
 from highlighting import table_highlighting
-from utils import Order, Axis
+from utils import Axis, Order, Rule
 
 base_dataframe = pd.DataFrame(
     {
@@ -21,12 +20,12 @@ def test_minimum_column_highlighting() -> None:
         },
         index=["a", "b", "c", "d", "e"],
     )
-    default_rules = {
-        "order": Order.MINIMUM,
-        "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
-        "default": "%s",
-        "precision": "%.2f",
-    }
+    default_rules = Rule(
+        order=Order.MINIMUM,
+        highlighting=["\\bfseries{%s}", "\\underline{%s}"],
+        default="%s",
+        precision="%.2f",
+    )
     expected = pd.DataFrame(
         {
             "A": ["\\bfseries{1.00}", "\\underline{2.00}", "3.00", "4.00", "5.00"],
@@ -43,12 +42,12 @@ def test_maximum_column_highlighting() -> None:
         },
         index=["a", "b", "c", "d", "e"],
     )
-    default_rules = {
-        "order": Order.MAXIMUM,
-        "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
-        "default": "%s",
-        "precision": "%.2f",
-    }
+    default_rules = Rule(
+        order=Order.MAXIMUM,
+        highlighting=["\\bfseries{%s}", "\\underline{%s}"],
+        default="%s",
+        precision="%.2f",
+    )
     expected = pd.DataFrame(
         {
             "A": ["1.00", "2.00", "3.00", "\\underline{4.00}", "\\bfseries{5.00}"],
@@ -69,12 +68,12 @@ def test_minimum_row_highlighting() -> None:
         },
         index=["a"],
     )
-    default_rules = {
-        "order": Order.MINIMUM,
-        "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
-        "default": "%s",
-        "precision": "%.2f",
-    }
+    default_rules = Rule(
+        order=Order.MINIMUM,
+        highlighting=["\\bfseries{%s}", "\\underline{%s}"],
+        default="%s",
+        precision="%.2f",
+    )
     expected = pd.DataFrame(
         {
             "A": ["\\bfseries{1.00}"],
@@ -99,12 +98,12 @@ def test_maximum_row_highlighting() -> None:
         },
         index=["a"],
     )
-    default_rules = {
-        "order": Order.MAXIMUM,
-        "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
-        "default": "%s",
-        "precision": "%.2f",
-    }
+    default_rules = Rule(
+        order=Order.MAXIMUM,
+        highlighting=["\\bfseries{%s}", "\\underline{%s}"],
+        default="%s",
+        precision="%.2f",
+    )
     expected = pd.DataFrame(
         {
             "A": ["1.00"],
@@ -126,19 +125,19 @@ def test_override_column() -> None:
         },
         index=["a", "b", "c", "d", "e"],
     )
-    default_rules = {
-        "order": Order.MINIMUM,
-        "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
-        "default": "%s",
-        "precision": "%.2f",
-    }
+    default_rules = Rule(
+        order=Order.MINIMUM,
+        highlighting=["\\bfseries{%s}", "\\underline{%s}"],
+        default="%s",
+        precision="%.2f",
+    )
     overrides = {
-        "B": {
-            "order": Order.MAXIMUM,
-            "highlighting": ["\\textbf{%s}", "\\underline{%s}"],
-            "default": "%s",
-            "precision": "%.2f",
-        }
+        "B": Rule(
+            order=Order.MAXIMUM,
+            highlighting=["\\textbf{%s}", "\\underline{%s}"],
+            default="%s",
+            precision="%.2f",
+        )
     }
     expected = pd.DataFrame(
         {
@@ -160,19 +159,19 @@ def test_override_row() -> None:
         },
         index=["a", "b", "c", "d", "e"],
     )
-    default_rules = {
-        "order": Order.MINIMUM,
-        "highlighting": ["\\bfseries{%s}", "\\underline{%s}"],
-        "default": "%s",
-        "precision": "%.2f",
-    }
+    default_rules = Rule(
+        order=Order.MINIMUM,
+        highlighting=["\\bfseries{%s}", "\\underline{%s}"],
+        default="%s",
+        precision="%.2f",
+    )
     overrides = {
-        "b": {
-            "order": Order.MAXIMUM,
-            "highlighting": ["\\textbf{%s}", "\\underline{%s}"],
-            "default": "%s",
-            "precision": "%.2f",
-        }
+        "b": Rule(
+            order=Order.MAXIMUM,
+            highlighting=["\\textbf{%s}", "\\underline{%s}"],
+            default="%s",
+            precision="%.2f",
+        )
     }
     expected = pd.DataFrame(
         {

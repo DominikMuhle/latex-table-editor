@@ -1,6 +1,6 @@
 import pandas as pd
 from table import Table
-from utils import Axis, Order
+from utils import Axis, Order, Rule
 
 
 def test_toggle_order_base_to_neutral():
@@ -17,7 +17,7 @@ def test_toggle_order_base_to_neutral():
     table.reset_formatting_rules()
 
     table.toggle_order(table.mode, "A")
-    assert table.overrides[table.mode]["A"]["order"] == Order.MAXIMUM
+    assert table.overrides[table.mode]["A"].order == Order.MAXIMUM
 
 
 def test_toggle_order_min_to_neutral():
@@ -32,10 +32,10 @@ def test_toggle_order_min_to_neutral():
     table.mode = Axis.COLUMN
     table.dataframe = dataframe
     table.reset_formatting_rules()
-    table.overrides[table.mode] = {"A": {"order": Order.MINIMUM}}
+    table.overrides[table.mode] = {"A": Rule(order=Order.MINIMUM)}
 
     table.toggle_order(table.mode, "A")
-    assert table.overrides[table.mode]["A"]["order"] == Order.NEUTRAL
+    assert table.overrides[table.mode]["A"].order == Order.NEUTRAL
 
 
 def test_toggle_order_neutral_to_max():
@@ -50,10 +50,10 @@ def test_toggle_order_neutral_to_max():
     table.mode = Axis.COLUMN
     table.dataframe = dataframe
     table.reset_formatting_rules()
-    table.overrides[table.mode] = {"A": {"order": Order.NEUTRAL}}
+    table.overrides[table.mode] = {"A": Rule(order=Order.NEUTRAL)}
 
     table.toggle_order(table.mode, "A")
-    assert table.overrides[table.mode]["A"]["order"] == Order.MAXIMUM
+    assert table.overrides[table.mode]["A"].order == Order.MAXIMUM
 
 
 def test_toggle_order_max_to_min():
@@ -68,7 +68,7 @@ def test_toggle_order_max_to_min():
     table.mode = Axis.COLUMN
     table.dataframe = dataframe
     table.reset_formatting_rules()
-    table.overrides[table.mode] = {"A": {"order": Order.MAXIMUM}}
+    table.overrides[table.mode] = {"A": Rule(order=Order.MAXIMUM)}
 
     table.toggle_order(table.mode, "A")
-    assert table.overrides[table.mode]["A"]["order"] == Order.MINIMUM
+    assert table.overrides[table.mode]["A"].order == Order.MINIMUM
