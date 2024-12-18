@@ -15,7 +15,7 @@ from latex_table_editor.screens import (
     HeaderIndexSelectionScreen,
     InputScreen,
     LATeXOutputScreen,
-    RulesInputScreen,
+    RulesScreen,
     WelcomeScreen,
 )
 from latex_table_editor.table import Table
@@ -31,8 +31,8 @@ class LTEApp(App):
         Binding("N", "show_input", "new input"),
         Binding("L", "show_latex_output", "show LaTeX"),
         Binding("T", "toggle_mode", "toggle row/column mode"),
-        Binding("d", "show_edit_default_rules", "edit default rules"),
-        Binding("e", "show_edit_rules", "edit rules"),
+        # Binding("d", "show_edit_default_rules", "edit default rules"),
+        Binding("R", "show_edit_rules", "edit rules"),
         Binding("o", "toggle_sorting_order", "toggle sorting order"),
         Binding("+", "increase_precision", "increase precision"),
         Binding("-", "decrease_precision", "decrease precision"),
@@ -95,94 +95,47 @@ class LTEApp(App):
 
         self.push_screen(HeaderIndexSelectionScreen(self.table), update_table)
 
-    async def action_show_edit_default_rules(self) -> None:
-        """Show the input screen for editing the default highlighting rules."""
-        info_text = "Enter the default highlighting rules in JSON format."
+    # async def action_show_edit_default_rules(self) -> None:
+    #     """Show the input screen for editing the default highlighting rules."""
+    #     def update_highlighting(default_rule: Rule, override_rules: dict) -> None:
+    #         self.table.default_rule = default_rule
+    #         self.data_table_screen.update_table()
+    #         self.data_table_screen.status_bar.update(
+    #             "Default highlighting rules updated."
+    #         )
 
-        def update_highlighting(new_rule: Rule | None) -> None:
-            if new_rule is not None:
-                self.table.default_rule = new_rule
-                self.table.reset_formatting_rules()
-            else:
-                self.data_table_screen.status_bar.update(
-                    "No changes were made to the default rules."
-                )
-
-        current_rules_json = json.dumps(self.table.default_rule.__dict__, indent=4)
-        self.push_screen(
-            RulesInputScreen(current_rules_json, info_text, update_highlighting),
-        )
-        self.data_table_screen.update_table()
+    #     self.push_screen(
+    #         RulesScreen(
+    #             self.table.default_rule,
+    #             {},
+    #             update_highlighting
+    #         ),
+    #     )
+    #     self.data_table_screen.update_table()
 
     async def action_show_edit_rules(self) -> None:
-        """Show the input screen for column/row-specific highlighting rules."""
+        """Show the rules screen with override rules based on the current mode."""
         match self.table.mode:
             case Axis.COLUMN:
-                await self.show_column_rules()
+                override_rules = self.table.overrides[Axis.COLUMN]
             case Axis.ROW:
-                await self.show_row_rules()
+                override_rules = self.table.overrides[Axis.ROW]
 
-    async def show_column_rules(self) -> None:
-        """Show the input screen for column-specific highlighting rules."""
-        # Get the name of the current cursor column from DataTableScreen
-        try:
-            column_name = self.table.dataframe.columns[
-                self.data_table_screen.data_table.cursor_column
-            ]
-        except (IndexError, AttributeError):
-            self.data_table_screen.status_bar.update("No column selected.")
-            return
-
-        info_text = (
-            f"Enter the highlighting rules for column '{column_name}' in JSON format."
-        )
-
-        def update_highlighting(new_rule: Rule | None) -> None:
-            if new_rule is not None:
-                self.table.overrides[Axis.COLUMN][column_name] = new_rule
-                self.data_table_screen.update_table()
-                self.data_table_screen.status_bar.update(
-                    f"Highlighting rules updated for '{column_name}'."
-                )
+        def update_highlighting(default_rule: Rule, updated_override_rules: dict) -> None:
+            if self.table.mode == Axis.COLUMN:
+                self.table.overrides[Axis.COLUMN] = updated_override_rules
             else:
-                self.data_table_screen.status_bar.update("Invalid highlighting rules.")
-
-        self.current_highlighting_target = column_name
-        column_rules = self.table.overrides[Axis.COLUMN].get(column_name, Rule(**{}))
+                self.table.overrides[Axis.ROW] = updated_override_rules
+            self.table.default_rule = default_rule
+            self.data_table_screen.update_table()
+            self.data_table_screen.status_bar.update("Highlighting rules updated.")
 
         self.push_screen(
-            RulesInputScreen(json.dumps(column_rules.__dict__, indent=4), info_text, update_highlighting),
-        )
-        self.data_table_screen.update_table()
-
-    async def show_row_rules(self) -> None:
-        """Show the input screen for row-specific highlighting rules."""
-        # Get the name of the current cursor row from DataTableScreen
-        try:
-            row_name = self.table.dataframe.index[
-                self.data_table_screen.data_table.cursor_row
-            ]
-        except (IndexError, AttributeError):
-            self.data_table_screen.status_bar.update("No row selected.")
-            return
-
-        info_text = f"Enter the highlighting rules for row '{row_name}' in JSON format."
-
-        def update_highlighting(new_rule: Rule | None) -> None:
-            if new_rule is not None:
-                self.table.overrides[Axis.ROW][row_name] = new_rule
-                self.data_table_screen.update_table()
-                self.data_table_screen.status_bar.update(
-                    f"Highlighting rules updated for '{row_name}'."
-                )
-            else:
-                self.data_table_screen.status_bar.update("Invalid highlighting rules.")
-
-        self.current_highlighting_target = row_name
-        row_rules = self.table.overrides[Axis.ROW].get(row_name, Rule(**{}))
-
-        self.push_screen(
-            RulesInputScreen(json.dumps(row_rules.__dict__, indent=4), info_text, update_highlighting),
+            RulesScreen(
+                self.table.default_rule,
+                override_rules,
+                update_highlighting
+            ),
         )
         self.data_table_screen.update_table()
 
@@ -401,6 +354,9 @@ class LTEApp(App):
 
         self.data_table_screen.update_table()
 
+    async def on_input_submitted(self, value: str) -> None:
+        # Placeholder for handling input submission if necessary
+        pass
 
 
 if __name__ == "__main__":

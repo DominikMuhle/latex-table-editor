@@ -13,20 +13,19 @@ def highlight_extrema(
     extrema: list[float | int],
     highlights: list[str],
     default: str,
-    precision: str = "%.3f",
+    precision: int = 3,  # Changed from str to int
 ) -> str:
     if isinstance(data, str):
         return data
 
-    data_ = precision % data
+    format_str = f"%.{precision}f"
+    data_formatted = format_str % data
 
     for extremum, highlight in zip(extrema, highlights):
-        # highlight_ = highlight.replace("precision", precision)
         if data == extremum:
-            return highlight % data_
+            return highlight % data_formatted
 
-    # default_ = default.replace("precision", precision)
-    return default % data_
+    return default % data_formatted
 
 
 def column_highlighting(

@@ -126,13 +126,10 @@ class Table:
         if axis == Axis.ROW and name not in self.dataframe.index:
             return False
 
-        current_precision = self.overrides[axis][name].precision or self.default_rule.precision
-        matching = re.match(r"%.(\d+)f", current_precision)
-        if not matching:
+        precision = self.overrides[axis][name].precision or self.default_rule.precision
+        if precision >= 10:  # Set an upper limit if desired
             return False
-        significant_digits = int(matching.group(1))
-
-        self.overrides[axis][name].precision = f"%.{significant_digits + 1}f"
+        self.overrides[axis][name].precision = precision + 1
         return True
 
     def decrease_precision(self, axis: Axis, name: str) -> bool:
@@ -142,15 +139,10 @@ class Table:
         if axis == Axis.ROW and name not in self.dataframe.index:
             return False
 
-        current_precision = self.overrides[axis][name].precision or self.default_rule.precision
-        matching = re.match(r"%.(\d+)f", current_precision)
-        if not matching:
+        precision = self.overrides[axis][name].precision or self.default_rule.precision
+        if precision <= 0:  # Ensure precision doesn't go below zero
             return False
-        significant_digits = int(matching.group(1))
-        if significant_digits == 0:
-            return False
-
-        self.overrides[axis][name].precision = f"%.{significant_digits - 1}f"
+        self.overrides[axis][name].precision = precision - 1
         return True
 
     def swap_columns(self, col1: tuple[str] | str, col2: tuple[str] | str) -> bool:

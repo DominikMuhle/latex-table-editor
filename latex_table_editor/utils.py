@@ -19,13 +19,13 @@ class Rule:
     order: Order | None = None
     highlighting: list[str] | None = None
     default: str | None = None
-    precision: str | None = None
+    precision: int | None = None  # Changed from str to int
 
 DEFAULT_RULES = Rule(
     order=Order.NEUTRAL,
     highlighting=["\\bfseries{%s}", "\\underline{%s}"],
     default="%s",
-    precision="%.2f",
+    precision=2,  # Updated default precision to an integer
 )
 
 
