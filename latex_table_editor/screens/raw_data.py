@@ -5,7 +5,7 @@ from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Static
 
 
-class HeaderIndexSelectionScreen(ModalScreen):
+class RawDataScreen(ModalScreen):
     """Screen to adjust header rows and index columns."""
 
     BINDINGS = [

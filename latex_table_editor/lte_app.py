@@ -12,9 +12,9 @@ from latex_table_editor.conversion import (
 )
 from latex_table_editor.screens import (
     DataTableScreen,
-    HeaderIndexSelectionScreen,
     InputScreen,
     LATeXOutputScreen,
+    RawDataScreen,
     RulesScreen,
     WelcomeScreen,
 )
@@ -93,7 +93,7 @@ class LTEApp(App):
             self.table.reset_formatting_rules()
             self.data_table_screen.draw_table()
 
-        self.push_screen(HeaderIndexSelectionScreen(self.table), update_table)
+        self.push_screen(RawDataScreen(self.table), update_table)
 
     # async def action_show_edit_default_rules(self) -> None:
     #     """Show the input screen for editing the default highlighting rules."""
