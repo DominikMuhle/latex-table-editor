@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import get_args, get_origin
+from typing import Union, get_args, get_origin
 
 
 class Axis(str, Enum):
@@ -19,7 +19,30 @@ class Rule:
     order: Order | None = None
     highlighting: list[str] | None = None
     default: str | None = None
-    precision: int | None = None  # Changed from str to int
+    precision: int | None = None
+
+    def __setattr__(self, name, value):
+        expected_type = self.__annotations__.get(name)
+        if expected_type is not None and value is not None:
+            if not self._is_instance_of(value, expected_type):
+                raise TypeError(f"Attribute '{name}' must be of type {expected_type}, got {type(value)}")
+        super().__setattr__(name, value)
+
+    def _is_instance_of(self, value, expected_type):
+        origin = get_origin(expected_type)
+        args = get_args(expected_type)
+        if len(args) > 1:
+            return any(self._is_instance_of(value, arg) for arg in args)
+        if origin is Union:
+            return any(self._is_instance_of(value, arg) for arg in args)
+        elif origin is list:
+            return isinstance(value, list) and all(isinstance(item, args[0]) for item in value)
+        elif origin is float:
+            return isinstance(value, float)
+        elif origin is int:
+            return isinstance(value, int)
+        else:
+            return isinstance(value, expected_type)
 
 DEFAULT_RULES = Rule(
     order=Order.NEUTRAL,
@@ -28,38 +51,3 @@ DEFAULT_RULES = Rule(
     precision=2,  # Updated default precision to an integer
 )
 
-
-def is_instance_of(var, var_type):
-    """Check if a variable is an instance of a type"""
-
-    # check if var_type is a union
-    if len(get_args(var_type)) == 0:
-        return isinstance(var, var_type)
-    else:
-        return is_instance_of_union(var, var_type)
-
-
-def is_instance_of_union(var, union_type):
-    """Check if a variable is an instance of a union type"""
-    for typ in get_args(union_type):
-        origin = get_origin(typ)
-        if origin is None:
-            if isinstance(var, typ):
-                return True
-        elif isinstance(var, origin):
-            args = get_args(typ)
-            if all(isinstance(item, args[0]) for item in var):
-                return True
-    return False
-
-
-def filter_rule_keys(rules: dict[str, Rule]) -> tuple[dict[str, Rule], list[str]]:
-    """Filter out the keys that are not available in the rules dictionary"""
-    pop_keys = []
-    for key in rules.keys():
-        if key not in DEFAULT_RULES.__annotations__:
-            pop_keys.append(key)
-    for key in pop_keys:
-        rules.pop(key)
-
-    return rules, pop_keys

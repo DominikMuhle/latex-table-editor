@@ -1,21 +1,24 @@
+from typing import Any, Callable
+
 from textual.app import ComposeResult
-from textual.screen import ModalScreen, Screen
+from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Footer, Input
 
-from latex_table_editor.utils import Rule
+from latex_table_editor.utils import Order, Rule
 
 
 class InputModal(ModalScreen):
     """Modal input screen for editing cell values."""
 
-    def __init__(self, param: str, column: str, value: str):
+    def __init__(self, param: str, column: str, value: str | None, validate_input: Callable[[str], bool]):
         super().__init__()
         self.param = param
         self.prompt =  f"Enter new value for '{param}' in '{column}':"
         self.input_field = Input(placeholder="Enter value...")
-        self.input_field.value = value
+        if value:
+            self.input_field.value = value
         self.submit_button = Button("Submit", id="submit_button")
-        self.error_message = ""
+        self.validate_input = validate_input
 
     def compose(self) -> ComposeResult:
         yield self.input_field
@@ -24,15 +27,13 @@ class InputModal(ModalScreen):
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "submit_button":
             value = self.input_field.value
+
             if self.validate_input(value):
                 self.dismiss(value)
             else:
                 self.error_message = "Invalid input."
                 # ...code to display error message...
 
-    def validate_input(self, value: str) -> bool:
-        # Implement validation logic here
-        return True  # Replace with actual validation
 
 class RulesScreen(ModalScreen):
     """Screen to display and edit rules in a DataTable."""
@@ -80,46 +81,48 @@ class RulesScreen(ModalScreen):
         value = event.value
         column = event.cell_key.column_key.value
         param = event.cell_key.row_key.value
+        if column == "default":
+            rule = self.default_rule
+        else:
+            rule = self.override_rules[column]
+
+        def update_value(value: str) -> Any:
+            if param == "precision":
+                try:
+                    value = int(value)
+                except ValueError:
+                    self.error_message = "Precision must be an integer."
+                    # ...code to display error message...
+                    return False
+            if param == "highlighting":
+                value = value.split(",")
+
+            if param == "order":
+                value = Order(value)
+
+            return value
+
+        def check_validity(value: str) -> bool:
+            value = update_value(value)
+            
+            try:
+                setattr(rule, param, value)
+            except TypeError as e:
+                self.error_message = str(e)
+                # ...code to display error message...
+                return False
+            
+            return True
 
         def update_rule(value: str) -> None:
-            if column == "default":
-                rule = self.default_rule
-            else:
-                rule = self.override_rules[column]
+            value = update_value(value)
+
             setattr(rule, param, value)
             self.on_rule_change_callback(self.default_rule, self.override_rules)
             self.data_table.update_cell(event.cell_key.row_key, event.cell_key.column_key, getattr(rule, param, ""), update_width=True)
 
-        await self.app.push_screen(InputModal(str(param), str(column), value), update_rule)
+        await self.app.push_screen(InputModal(str(param), str(column), value, check_validity), update_rule)
 
-    # def on_input_submitted(self, value: str) -> None:
-    #     # Validate input and update rules
-    #     param, column_key = self.selected_cell
-    #     new_value = value if value != "" else None
-
-    #     if column_key == "default":
-    #         setattr(self.default_rule, param, new_value)
-    #     else:
-    #         rule = self.override_rules.get(column_key)
-    #         if rule is not None:
-    #             setattr(rule, param, new_value)
-    #         else:
-    #             self.override_rules[column_key] = Rule(**{param: new_value})
-
-    #     # Update the DataTable cell
-    #     self.data_table.update_cell(
-    #         row_key=param,
-    #         column_key=column_key,
-    #         value=str(new_value) if new_value else "",
-    #         update_width=True,
-    #     )
-
-    #     # Callback to update the rules in the main app
-    #     self.on_rule_change_callback(self.default_rule, self.override_rules)
-
-    def validate_input(self, value: str) -> bool:
-        # Implement validation logic specific to Rule parameters
-        return True  # Replace with actual validation
 
     def action_exit_screen(self) -> None:
         self.app.pop_screen()
