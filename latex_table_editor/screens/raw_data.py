@@ -39,11 +39,11 @@ class RawDataScreen(ModalScreen):
 
         # Add columns
         for col in df.columns:
-            self.data_table.add_column(str(col), key=str(col))
+            self.data_table.add_column(str(col), key=col)
 
         # Add rows
         for index, row in df.iterrows():
-            self.data_table.add_row(*[str(value) for value in row], key=str(index))
+            self.data_table.add_row(*[str(value) for value in row], key=index)
 
         self.update_table()
 
