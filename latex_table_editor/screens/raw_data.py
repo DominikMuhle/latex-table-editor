@@ -59,8 +59,8 @@ class RawDataScreen(ModalScreen):
                 if col in df.columns[: self.table.num_index_columns]:
                     value = f"[red]{value}[/red]"
 
-                self.data_table.update_cell(
-                    row_key=str(index), column_key=str(col), value=value
+                self.data_table.update_cell_at(
+                    (index, col), value=value
                 )
 
     async def action_increase_num_header_rows(self) -> None:
