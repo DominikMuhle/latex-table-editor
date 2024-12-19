@@ -90,6 +90,7 @@ class LTEApp(App):
     async def action_show_header_index_selection(self) -> None:
         """Show the screen for adjusting header rows and index columns."""
         def update_table(_: None) -> None:
+            self.table.update_from_str_dataframe()
             self.table.reset_formatting_rules()
             self.data_table_screen.draw_table()
 
