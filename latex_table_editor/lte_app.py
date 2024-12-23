@@ -31,7 +31,7 @@ class LTEApp(App):
         Binding("N", "show_input", "new input"),
         Binding("L", "show_latex_output", "show LaTeX"),
         Binding("T", "toggle_mode", "toggle row/column mode"),
-        # Binding("d", "show_edit_default_rules", "edit default rules"),
+        Binding("ctrl+h", "show_help", "help"),
         Binding("R", "show_edit_rules", "edit rules"),
         Binding("o", "toggle_sorting_order", "toggle sorting order"),
         Binding("+", "increase_precision", "increase precision"),
@@ -60,6 +60,10 @@ class LTEApp(App):
     async def reset_screen(self) -> None:
         """Reset the screen to the DataTable."""
         await self.switch_screen(self.data_table_screen)
+
+    async def show_help(self) -> None:
+        """Show the help screen."""
+        await self.push_screen(WelcomeScreen(on_new_input=self.action_show_input))
 
     async def action_show_input(self) -> None:
         """Show the input screen for table input."""

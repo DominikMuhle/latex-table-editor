@@ -2,8 +2,38 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import DataTable, Footer, Static
+from textual.widgets import Button, DataTable, Footer, Input, Static
 
+from latex_table_editor.screens import HelpScreen
+
+
+class InputModal(ModalScreen):
+    """Modal input screen for editing cell values."""
+
+    def __init__(self, row_key, column_key, value):
+        super().__init__()
+        self.row_key = row_key
+        self.column_key = column_key
+        self.input_field = Input(placeholder="Enter new value...")
+        self.input_field.value = value
+        self.submit_button = Button("Submit", id="submit_button")
+
+    def compose(self) -> ComposeResult:
+        yield self.input_field
+        yield self.submit_button
+
+
+HELP_TEXT = """
+    This screen directly displays the raw data in the table. You can navigate the table using the arrow keys. If you want to change a value of a cell, select the cell and press 'Enter' to edit the value.
+
+    This screen also allows you to adjust the number of header rows and index columns. Use the following keybindings to adjust the table:
+    - 'k': Increase the number of header rows.
+    - 'i': Decrease the number of header rows.
+    - 'l': Increase the number of index columns.
+    - 'j': Decrease the number of index columns.
+
+    Press 'Ctrl+q' to exit this screen.
+    """
 
 class RawDataScreen(ModalScreen):
     """Screen to adjust header rows and index columns."""
@@ -13,7 +43,8 @@ class RawDataScreen(ModalScreen):
         Binding("i", "decrease_num_header_rows", "Decrease Header Rows"),
         Binding("l", "increase_num_index_columns", "Increase Index Columns"),
         Binding("j", "decrease_num_index_columns", "Decrease Index Columns"),
-        Binding("escape", "exit", "Exit"),
+        Binding("ctrl+h", "show_help", "Show Help"),
+        Binding("ctrl+q", "exit", "Exit"),
     ]
 
     def __init__(self, table):
@@ -93,3 +124,40 @@ class RawDataScreen(ModalScreen):
         """Exit the screen."""
         self.dismiss()
 
+    async def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
+        """Handle cell selection to allow editing."""
+        row_key = event.coordinate.row
+        column_key = event.coordinate.column
+
+        # Do not allow editing of header rows and index columns
+        if row_key < self.table.num_header_rows or column_key < self.table.num_index_columns:
+            return
+
+        df = self.table.str_dataframe
+        idx = df.index[row_key]
+        col = df.columns[column_key]
+        value = df.at[idx, col]
+        self.input_modal = InputModal(row_key, column_key, str(value))
+        await self.app.push_screen(self.input_modal, self.update_cell_value)
+
+    def update_cell_value(self, value: str) -> None:
+        """Update the cell value in the data table and dataframe."""
+        row_key = self.input_modal.row_key
+        column_key = self.input_modal.column_key
+
+        df = self.table.str_dataframe
+        idx = df.index[row_key]
+        col = df.columns[column_key]
+        df.at[idx, col] = value
+        self.table.update_from_str_dataframe()
+
+        # Update the data table
+        self.data_table.update_cell_at((row_key, col), value=str(value))
+
+        # Redraw the table to reflect any changes
+        self.update_table()
+
+    
+    async def action_show_help(self) -> None:
+        """Show the help screen."""
+        await self.push_screen(HelpScreen(HELP_TEXT))

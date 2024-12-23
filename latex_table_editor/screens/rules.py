@@ -4,8 +4,19 @@ from textual.app import ComposeResult
 from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Footer, Input
 
+from latex_table_editor.screens import HelpScreen
 from latex_table_editor.utils import Order, Rule
 
+HELP_TEXT = """
+This screen allows you to view and edit the rules used to format the table. The rules are applied to the table data to customize the appearance of the table. You can edit the default rule and add override rules for specific rows/columns. Only the rules that are currently active (row/column mode of the table) will be displayed here.
+
+To edit a rule, select the cell and press 'Enter'. You can then enter the new value for the rule parameter. Press 'ctrl+q' to exit this screen.
+
+Some best prectices for editing rules:
+    - only set the highlighting parameters in the default rules. You probably want consistent hightlighting for the entire table.
+    - only set the default rule in the default rule. You probably want the same default rule for the entire table.
+    - use the keybindings in the table screen to quickly change the values of the rules, such as precision and order.
+"""
 
 class InputModal(ModalScreen):
     """Modal input screen for editing cell values."""
@@ -38,7 +49,10 @@ class InputModal(ModalScreen):
 class RulesScreen(ModalScreen):
     """Screen to display and edit rules in a DataTable."""
 
-    BINDINGS = [("q", "exit_screen", "Return")]
+    BINDINGS = [
+        ("ctrl+q", "exit_screen", "Return"), 
+        ("h", "show_help", "Show Help"),
+        ]
 
     def __init__(self, default_rule: Rule, override_rules: dict, on_rule_change_callback):
         super().__init__()
@@ -124,5 +138,8 @@ class RulesScreen(ModalScreen):
         await self.app.push_screen(InputModal(str(param), str(column), value, check_validity), update_rule)
 
 
-    def action_exit_screen(self) -> None:
-        self.app.pop_screen()
+    async def action_exit_screen(self) -> None:
+        await self.dismiss()
+
+    async def action_show_help(self) -> None:
+        await self.app.push_screen(HelpScreen(HELP_TEXT))

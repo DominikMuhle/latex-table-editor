@@ -10,7 +10,15 @@ from latex_table_editor.conversion import (
     string_to_dataframe,
     yaml_to_dataframe,
 )
+from latex_table_editor.screens import HelpScreen
 
+HELP_TEXT = """
+    To enter a table into the app, follow these steps:
+    1. Prepare your table data in LaTeX, JSON, YAML, or string format.
+    2. (Optional) Use "Ctrl+l" to change the input mode.
+    3. Enter the table data in the input area, by pasting or typing.
+    4. Use "Ctrl+s" to submit the data and display the table.
+    """
 
 class ModeSelectionScreen(ModalScreen):
     """Screen for selecting the input mode."""
@@ -44,8 +52,12 @@ class InputScreen(ModalScreen):
     """Screen for table input."""
 
     BINDINGS = [
-        Binding("ctrl+s", "submit", "Submit"),
-        Binding("ctrl+l", "open_mode_selection", "Select Mode"),
+        Binding("h", "show_help", "Show Help"),
+        Binding("q", "exit_screen", "Exit"),
+        Binding("escape", "read_only", "Navigation Mode"),
+        Binding("i", "input_mode", "Input Mode"),
+        Binding("s", "submit", "Submit"),
+        Binding("m", "open_mode_selection", "Select Mode"),
     ]
 
     def __init__(self, mode='latex', on_submit=None):
@@ -53,9 +65,16 @@ class InputScreen(ModalScreen):
         self.mode = mode
         self.on_submit = on_submit
         self.info_text = Static("Enter the table data in LaTeX format.", id="info")
-        self.input_area = TextArea(id="input")
+        self.input_area = TextArea(id="input", read_only=True)
         self.status_bar = Static("Status: Ready", id="status")
         self.footer = Footer(id="footer")
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        match action:
+            case "read_only":
+                return not self.input_area.read_only
+            case _:
+                return self.input_area.read_only
 
     def compose(self) -> ComposeResult:
         yield Grid(self.info_text, self.input_area, id="grid_input")
@@ -107,3 +126,20 @@ class InputScreen(ModalScreen):
             pass
             self.status_bar.update(f"Invalid input: {e}")
 
+    async def action_exit_screen(self) -> None:
+        """Exit the screen."""
+        self.dismiss()
+
+    async def action_show_help(self) -> None:
+        """Show the help screen."""
+        await self.app.push_screen(HelpScreen(HELP_TEXT))
+
+    async def action_read_only(self) -> None:
+        """Shift focus to the rest of the screen."""
+        self.input_area.read_only = True
+        self.refresh_bindings() 
+
+    async def action_input_mode(self) -> None:
+        """Shift focus back to the input area."""
+        self.input_area.read_only = False
+        self.refresh_bindings()
