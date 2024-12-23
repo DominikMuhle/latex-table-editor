@@ -8,22 +8,9 @@ from textual.widgets import DataTable, Footer, Static
 from latex_table_editor.screens.help_screen import HelpScreen
 from latex_table_editor.utils import Axis, Order, Rule
 
-HELP_TEXT = """
-        To enter a table into the app, follow these steps:
-        1. Prepare your table data in a CSV or Excel file.
-        2. Use the 'Import' button to load your file into the app.
-        3. The table will be displayed on the screen.
-        4. You can edit the table cells directly by clicking on them.
-        5. Use the toolbar options to format and customize your table.
-        6. Once done, you can export the table using the 'Export' button.
-        """
 
 class DataTableScreen(Screen):
     """Screen displaying the DataTable."""
-
-    BINDINGS = [
-       Binding("ctrl+h", "show_help", "Show Help"),
-    ]
 
     def __init__(self, table):
         super().__init__()
@@ -175,6 +162,4 @@ class DataTableScreen(Screen):
         """Initialize the DataTable with data."""
         self.data_table.cursor_type = "cell"
 
-    async def action_show_help(self) -> None:
-        await self.push_screen(HelpScreen(HELP_TEXT))
 

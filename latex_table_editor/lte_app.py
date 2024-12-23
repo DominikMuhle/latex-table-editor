@@ -21,6 +21,15 @@ from latex_table_editor.screens import (
 from latex_table_editor.table import Table
 from latex_table_editor.utils import Axis, Rule
 
+HELP_TEXT = """
+To enter a table into the app, follow these steps:
+1. Prepare your table data in a CSV or Excel file.
+2. Use the 'Import' button to load your file into the app.
+3. The table will be displayed on the screen.
+4. You can edit the table cells directly by clicking on them.
+5. Use the toolbar options to format and customize your table.
+6. Once done, you can export the table using the 'Export' button.
+"""
 
 class LTEApp(App):
     """Main application class."""
@@ -28,19 +37,19 @@ class LTEApp(App):
     CSS_PATH = "p2l_ui.tcss"
 
     BINDINGS = [
-        Binding("N", "show_input", "new input"),
-        Binding("L", "show_latex_output", "show LaTeX"),
-        Binding("T", "toggle_mode", "toggle row/column mode"),
-        Binding("ctrl+h", "show_help", "help"),
-        Binding("R", "show_edit_rules", "edit rules"),
-        Binding("o", "toggle_sorting_order", "toggle sorting order"),
-        Binding("+", "increase_precision", "increase precision"),
-        Binding("-", "decrease_precision", "decrease precision"),
+        Binding("h", "show_help", "help"),
+        Binding("N", "show_input", "new table"),
+        Binding("D", "show_header_index_selection", "raw data"),
+        Binding("L", "show_latex_output", "LaTeX"),
+        Binding("R", "show_edit_rules", "rules"),
+        Binding("S", "start_selection_mode", "swap mode"),
+        Binding("t", "toggle_mode", "toggle row/column"),
+        Binding("o", "toggle_sorting_order", "sorting"),
+        Binding("+", "increase_precision", "inc. precision"),
+        Binding("-", "decrease_precision", "dec. precision"),
         Binding("x", "toggle_cell", "skip/include row/column"),
-        Binding("S", "start_selection_mode", "start swap mode"),
         Binding("s", "data_selection", "select row/column", show=False),
         Binding("click", "handle_click", "toggle order", show=False),
-        Binding("t", "show_header_index_selection", "Adjust Headers/Indices"),
     ]
 
     def __init__(self):
@@ -99,24 +108,6 @@ class LTEApp(App):
             self.data_table_screen.draw_table()
 
         self.push_screen(RawDataScreen(self.table), update_table)
-
-    # async def action_show_edit_default_rules(self) -> None:
-    #     """Show the input screen for editing the default highlighting rules."""
-    #     def update_highlighting(default_rule: Rule, override_rules: dict) -> None:
-    #         self.table.default_rule = default_rule
-    #         self.data_table_screen.update_table()
-    #         self.data_table_screen.status_bar.update(
-    #             "Default highlighting rules updated."
-    #         )
-
-    #     self.push_screen(
-    #         RulesScreen(
-    #             self.table.default_rule,
-    #             {},
-    #             update_highlighting
-    #         ),
-    #     )
-    #     self.data_table_screen.update_table()
 
     async def action_show_edit_rules(self) -> None:
         """Show the rules screen with override rules based on the current mode."""

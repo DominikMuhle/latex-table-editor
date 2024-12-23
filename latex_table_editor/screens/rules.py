@@ -10,7 +10,7 @@ from latex_table_editor.utils import Order, Rule
 HELP_TEXT = """
 This screen allows you to view and edit the rules used to format the table. The rules are applied to the table data to customize the appearance of the table. You can edit the default rule and add override rules for specific rows/columns. Only the rules that are currently active (row/column mode of the table) will be displayed here.
 
-To edit a rule, select the cell and press 'Enter'. You can then enter the new value for the rule parameter. Press 'ctrl+q' to exit this screen.
+To edit a rule, select the cell and press 'Enter'. You can then enter the new value for the rule parameter.
 
 Some best prectices for editing rules:
     - only set the highlighting parameters in the default rules. You probably want consistent hightlighting for the entire table.
@@ -50,7 +50,7 @@ class RulesScreen(ModalScreen):
     """Screen to display and edit rules in a DataTable."""
 
     BINDINGS = [
-        ("ctrl+q", "exit_screen", "Return"), 
+        ("q", "exit_screen", "Return"), 
         ("h", "show_help", "Show Help"),
         ]
 

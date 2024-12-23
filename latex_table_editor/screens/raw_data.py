@@ -24,16 +24,14 @@ class InputModal(ModalScreen):
 
 
 HELP_TEXT = """
-    This screen directly displays the raw data in the table. You can navigate the table using the arrow keys. If you want to change a value of a cell, select the cell and press 'Enter' to edit the value.
+This screen directly displays the raw data in the table. You can navigate the table using the arrow keys. If you want to change a value of a cell, select the cell and press 'Enter' to edit the value.
 
-    This screen also allows you to adjust the number of header rows and index columns. Use the following keybindings to adjust the table:
-    - 'k': Increase the number of header rows.
-    - 'i': Decrease the number of header rows.
-    - 'l': Increase the number of index columns.
-    - 'j': Decrease the number of index columns.
-
-    Press 'Ctrl+q' to exit this screen.
-    """
+This screen also allows you to adjust the number of header rows and index columns. Use the following keybindings to adjust the table:
+- 'k': Increase the number of header rows.
+- 'i': Decrease the number of header rows.
+- 'l': Increase the number of index columns.
+- 'j': Decrease the number of index columns.
+"""
 
 class RawDataScreen(ModalScreen):
     """Screen to adjust header rows and index columns."""
@@ -43,8 +41,8 @@ class RawDataScreen(ModalScreen):
         Binding("i", "decrease_num_header_rows", "Decrease Header Rows"),
         Binding("l", "increase_num_index_columns", "Increase Index Columns"),
         Binding("j", "decrease_num_index_columns", "Decrease Index Columns"),
-        Binding("ctrl+h", "show_help", "Show Help"),
-        Binding("ctrl+q", "exit", "Exit"),
+        Binding("h", "show_help", "Show Help"),
+        Binding("q", "exit", "Exit"),
     ]
 
     def __init__(self, table):
