@@ -35,12 +35,14 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
     for line in lines:
         # Skip lines before the table starts
         if not table_started:
-            if re.match(r"\\begin\{tabular\}", line):
+            if re.search(r"\\begin\{tabular\}", line) or re.search(
+                r"\\begin\{tabularx\}", line
+            ):
                 table_started = True
             continue
 
         # Skip lines after the table ends
-        if table_started and re.match(r"\\end\{tabular\}", line):
+        if table_started and re.search(r"\\end\{tabular\}", line):
             table_ended = True
         if table_ended:
             continue
@@ -52,17 +54,20 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
             continue
 
         # Skip LaTeX table environment lines and \toprule, \bottomrule, \hline, \cmidrule
-        if re.match(r"\\begin\{tabular\}", line) or re.match(r"\\end\{tabular\}", line):
+        if re.search(r"\\begin\{tabular\}", line) or re.search(
+            r"\\end\{tabular\}", line
+        ):
             continue
-        if re.match(r"\\(top|bottom|mid)rule", line):
+        if re.search(r"\\(top|bottom|mid)rule", line):
             continue
-        if re.match(r"\\hline", line):
+        if re.search(r"\\hline", line):
             continue
-        if re.match(r"\\cmidrule", line):
+        if re.search(r"\\cmidrule", line):
             continue
 
-        # Remove comments starting with %
-        line = re.sub(r"%.*", "", line).strip()
+        # Remove comments starting with % but not \% and strip whitespace
+        line = re.sub(r"(?<!\\)%.*", "", line).strip()
+        # line = re.sub(r"%.*", "", line).strip()
         if not line:
             continue
 
@@ -123,6 +128,7 @@ def latex_table_to_dataframe(latex_str: str) -> pd.DataFrame:
     df = df.fillna("")
     return df
 
+
 def extract_numbers_from_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """
     Extract numerical values from DataFrame cells.
@@ -133,6 +139,7 @@ def extract_numbers_from_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
     - pd.DataFrame: DataFrame with numerical values extracted.
     """
+
     def extract_number(cell):
         if cell == "":
             return cell
@@ -141,14 +148,19 @@ def extract_numbers_from_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         cell_wo_commands = cell_wo_commands.strip()
         # if only a number is left, turn it into a float
         if re.match(r"-?\d+\.?\d*", cell_wo_commands):
-            return float(cell_wo_commands)
+            try:
+                final = float(cell_wo_commands)
+            except ValueError:
+                final = cell_wo_commands
+            return final
         return cell
 
     return df.applymap(extract_number)
 
+
 def infer_headers_and_indices(df: pd.DataFrame) -> tuple[int, int]:
     """
-    Infer the number of header rows and index columns from a DataFrame. 
+    Infer the number of header rows and index columns from a DataFrame.
 
     Parameters:
     - df (pd.DataFrame): DataFrame to infer header rows and index columns from.
@@ -173,6 +185,7 @@ def infer_headers_and_indices(df: pd.DataFrame) -> tuple[int, int]:
 
     return len(header_indices), len(index_indices)
 
+
 def string_to_dataframe(input_str: str) -> pd.DataFrame:
     """
     Convert a string representation of a DataFrame into an actual DataFrame.
@@ -181,6 +194,7 @@ def string_to_dataframe(input_str: str) -> pd.DataFrame:
     df = pd.read_csv(StringIO(input_str))
     df = df.fillna("")
     return df
+
 
 def dict_to_dataframe(input_dict: dict) -> pd.DataFrame:
     """
@@ -210,6 +224,7 @@ def dict_to_dataframe(input_dict: dict) -> pd.DataFrame:
             index = list(zip(*index))
 
     return pd.DataFrame(data=data, columns=columns, index=index)
+
 
 def json_to_dataframe(input_str: str) -> pd.DataFrame:
     """
